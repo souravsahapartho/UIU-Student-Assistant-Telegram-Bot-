@@ -159,7 +159,7 @@ async def startup_event():
         entry_points=[CommandHandler("broadcast", admin_broadcast)],
         states={
             ADMIN_BROADCAST_MESSAGE: [
-                MessageHandler(filters.TEXT & ~filters.Command, broadcast_message)
+                MessageHandler(filters.TEXT & ~filters.COMMAND, broadcast_message)
             ],
         },
         fallbacks=[],
