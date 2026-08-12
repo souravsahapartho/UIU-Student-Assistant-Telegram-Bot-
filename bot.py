@@ -37,13 +37,13 @@ from handlers.cgpa import (
 from handlers.fee import (
     fee_start,
     get_reg_credits,
-    get_retake_counts,
+    get_retake_count,
     get_retake_credits,
     get_discount_type,
     get_discount_percent,
     fee_cancel,
 )
-from handlers.admin import admin_panel, set_config, admin_broadcast, broadcast_message
+from handlers.admin import admin_panel, admin_broadcast, broadcast_message
 from states import (
     CGPA_MENU_CHOICE,
     CGPA_PREV_CREDITS,
@@ -128,7 +128,7 @@ async def startup_event():
             ],
             FEE_RETAKE_COUNT: [
                 MessageHandler(
-                    filters.TEXT & ~filters.Regex("^❌ Cancel$"), get_retake_counts
+                    filters.TEXT & ~filters.Regex("^❌ Cancel$"), get_retake_count
                 )
             ],
             FEE_RETAKE_CREDITS: [
