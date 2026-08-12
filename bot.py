@@ -37,10 +37,10 @@ from handlers.cgpa import (
 from handlers.fee import (
     fee_start,
     get_reg_credits,
-    get_retake_courses,
+    get_retake_counts,
     get_retake_credits,
-    get_scholarship,
-    get_waiver,
+    get_discount_type,
+    get_discount_percent,
     fee_cancel,
 )
 from handlers.admin import admin_panel, set_config, admin_broadcast, broadcast_message
@@ -54,8 +54,8 @@ from states import (
     FEE_REG_CREDITS,
     FEE_RETAKE_COUNT,
     FEE_RETAKE_CREDITS,
-    FEE_SCHOLARSHIP,
-    FEE_WAIVER,
+    FEE_DISCOUNT_TYPE,
+    FEE_DISCOUNT_PERCENT,
     ADMIN_BROADCAST_MESSAGE,
 )
 from database import init_db
@@ -74,7 +74,7 @@ async def startup_event():
     ptb.add_handler(CommandHandler("help", help_command))
     ptb.add_handler(CommandHandler("about", about))
     ptb.add_handler(CommandHandler("admin", admin_panel))
-    ptb.add_handler(CommandHandler("set", set_config))
+    ptb.add_handler(CommandHandler("broadcast", admin_broadcast))
 
     cgpa_conv_handler = ConversationHandler(
         entry_points=[
@@ -128,7 +128,7 @@ async def startup_event():
             ],
             FEE_RETAKE_COUNT: [
                 MessageHandler(
-                    filters.TEXT & ~filters.Regex("^❌ Cancel$"), get_retake_courses
+                    filters.TEXT & ~filters.Regex("^❌ Cancel$"), get_retake_counts
                 )
             ],
             FEE_RETAKE_CREDITS: [
@@ -136,13 +136,15 @@ async def startup_event():
                     filters.TEXT & ~filters.Regex("^❌ Cancel$"), get_retake_credits
                 )
             ],
-            FEE_SCHOLARSHIP: [
+            FEE_DISCOUNT_TYPE: [
                 MessageHandler(
-                    filters.TEXT & ~filters.Regex("^❌ Cancel$"), get_scholarship
+                    filters.TEXT & ~filters.Regex("^❌ Cancel$"), get_discount_type
                 )
             ],
-            FEE_WAIVER: [
-                MessageHandler(filters.TEXT & ~filters.Regex("^❌ Cancel$"), get_waiver)
+            FEE_DISCOUNT_PERCENT: [
+                MessageHandler(
+                    filters.TEXT & ~filters.Regex("^❌ Cancel$"), get_discount_percent
+                )
             ],
         },
         fallbacks=[
@@ -165,9 +167,7 @@ async def startup_event():
     )
     ptb.add_handler(admin_broadcast_handler)
 
-    ptb.add_handler(
-        MessageHandler(filters.Regex("^📚 Academic Information$"), academic_info)
-    )
+    ptb.add_handler(MessageHandler(filters.Regex("^📚 Academic Info$"), academic_info))
     ptb.add_handler(
         MessageHandler(filters.Regex("^🔗 Important Links$"), important_links)
     )
