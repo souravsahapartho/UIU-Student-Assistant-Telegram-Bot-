@@ -1,7 +1,9 @@
 import sqlite3
 from typing import Dict, List, Any, Optional
+import logging
 
 DB_NAME = "uiu_assistant.db"
+logger = logging.getLogger(__name__)
 
 
 def get_connection():
@@ -21,9 +23,17 @@ def init_db():
             first_name TEXT,
             username TEXT,
             created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
-            last_active TIMESTAMP DEFAULT CURRENT_TIMESTAMP
+            last_active TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+            notifications_enabled INTEGER DEFAULT 1
         )
     """)
+
+    try:
+        cursor.execute(
+            "ALTER TABLE users ADD COLUMN notifications_enabled INTEGER DEFAULT 1"
+        )
+    except sqlite3.OperationalError:
+        pass
 
     cursor.execute("""
         CREATE TABLE IF NOT EXISTS settings (
@@ -36,9 +46,9 @@ def init_db():
     cursor.execute("""
         CREATE TABLE IF NOT EXISTS notices (
             id INTEGER PRIMARY KEY AUTOINCREMENT,
-            title TEXT,
-            description TEXT,
-            url TEXT,
+            title TEXT UNIQUE,
+            link TEXT,
+            published_date TEXT,
             created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
         )
     """)
@@ -63,6 +73,66 @@ def log_user_activity(telegram_id: int, first_name: str, username: Optional[str]
     )
     conn.commit()
     conn.close()
+
+
+def add_notice_if_new(title: str, link: str, published_date: str) -> bool:
+    """Returns True if it's a new notice, False if it already exists."""
+    conn = get_connection()
+    cursor = conn.cursor()
+    try:
+        cursor.execute(
+            "INSERT INTO notices (title, link, published_date) VALUES (?, ?, ?)",
+            (title, link, published_date),
+        )
+        conn.commit()
+        return True
+    except sqlite3.IntegrityError:
+        return False
+    finally:
+        conn.close()
+
+
+def get_recent_notices(limit: int = 5) -> List[sqlite3.Row]:
+    conn = get_connection()
+    cursor = conn.cursor()
+    cursor.execute("SELECT * FROM notices ORDER BY id DESC LIMIT ?", (limit,))
+    rows = cursor.fetchall()
+    conn.close()
+    return rows
+
+
+def get_notification_status(telegram_id: int) -> bool:
+    conn = get_connection()
+    cursor = conn.cursor()
+    cursor.execute(
+        "SELECT notifications_enabled FROM users WHERE telegram_id = ?", (telegram_id,)
+    )
+    row = cursor.fetchone()
+    conn.close()
+    return bool(row["notifications_enabled"]) if row else True
+
+
+def toggle_notification(telegram_id: int) -> bool:
+    current_status = get_notification_status(telegram_id)
+    new_status = 0 if current_status else 1
+    conn = get_connection()
+    cursor = conn.cursor()
+    cursor.execute(
+        "UPDATE users SET notifications_enabled = ? WHERE telegram_id = ?",
+        (new_status, telegram_id),
+    )
+    conn.commit()
+    conn.close()
+    return bool(new_status)
+
+
+def get_all_subscribers() -> List[int]:
+    conn = get_connection()
+    cursor = conn.cursor()
+    cursor.execute("SELECT telegram_id FROM users WHERE notifications_enabled = 1")
+    rows = cursor.fetchall()
+    conn.close()
+    return [row["telegram_id"] for row in rows]
 
 
 def get_setting(key: str, default: Any) -> Any:
