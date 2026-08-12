@@ -2,7 +2,6 @@ import os
 import asyncio
 import sys
 import logging
-import feedparser
 from dotenv import load_dotenv
 from telegram import Update
 from telegram.ext import (
@@ -14,20 +13,17 @@ from telegram.ext import (
     filters,
     ContextTypes,
 )
-
 from config import Config
 from handlers.general import (
     start,
-    show_help,
+    help_command,
     about,
     academic_info,
     important_links,
     notices,
     academic_calendar,
-    settings_menu,
-    settings_callback,
-    handle_cancel,
-    show_not_implemented,
+    academic_info_callback,
+    check_uiu_notices,
 )
 from handlers.cgpa import (
     cgpa_start,
@@ -62,63 +58,12 @@ from states import (
     FEE_DISCOUNT_TYPE,
     FEE_DISCOUNT_PERCENT,
 )
-from database import init_db, add_notice_if_new, get_all_subscribers
+from database import init_db
 
 logging.basicConfig(
     format="%(asctime)s - %(name)s - %(levelname)s - %(message)s", level=logging.INFO
 )
 logger = logging.getLogger(__name__)
-
-
-async def check_uiu_notices(context: ContextTypes.DEFAULT_TYPE):
-    logger.info("Checking for new UIU notices...")
-    feed_url = "https://www.uiu.ac.bd/notice/feed/"
-
-    try:
-        feed = feedparser.parse(feed_url)
-        if not feed.entries:
-            return
-
-        latest = feed.entries[0]
-        title = latest.title
-        link = latest.link
-        pub_date = latest.published if hasattr(latest, "published") else "Recent"
-
-        is_new = add_notice_if_new(title, link, pub_date)
-
-        if is_new:
-            logger.info(f"New Notice Found: {title}")
-            subscribers = get_all_subscribers()
-
-            message = (
-                "🚨 **NEW UIU NOTICE** 🚨\n\n"
-                f"📌 **{title}**\n\n"
-                f"🔗 [Click here to read]({link})\n\n"
-                "_You received this because your Notice Alerts are ON. Turn off in ⚙️ Settings._"
-            )
-
-            for user_id in subscribers:
-                try:
-                    await context.bot.send_message(
-                        chat_id=user_id,
-                        text=message,
-                        parse_mode="Markdown",
-                        disable_web_page_preview=True,
-                    )
-                    await asyncio.sleep(0.05)  # Prevent Telegram flood limits
-                except Exception as e:
-                    logger.error(f"Failed to send notice to {user_id}: {e}")
-
-    except Exception as e:
-        logger.error(f"Failed to fetch RSS feed: {e}")
-
-
-async def error_handler(update: object, context: ContextTypes.DEFAULT_TYPE) -> None:
-    logger.error("Exception while handling an update:", exc_info=context.error)
-    if isinstance(update, Update) and update.message:
-        await update.message.reply_text(
-            "⚠ Something went wrong. Please try again or type /start to restart."
-        )
 
 
 def main():
@@ -132,11 +77,10 @@ def main():
 
     if app.job_queue:
         app.job_queue.run_repeating(check_uiu_notices, interval=1800, first=10)
-    else:
-        logger.warning("JobQueue is not initialized. Automatic notices will not work.")
 
     app.add_handler(CommandHandler("start", start))
-    app.add_handler(CommandHandler("help", show_help))
+    app.add_handler(CommandHandler("help", help_command))
+    app.add_handler(CommandHandler("about", about))
     app.add_handler(CommandHandler("admin", admin_panel))
 
     cgpa_conv_handler = ConversationHandler(
@@ -228,25 +172,16 @@ def main():
     app.add_handler(
         MessageHandler(filters.Regex("^📅 Academic Calendar$"), academic_calendar)
     )
-    app.add_handler(MessageHandler(filters.Regex("^❓ Help$"), show_help))
+    app.add_handler(MessageHandler(filters.Regex("^❓ Help$"), help_command))
     app.add_handler(MessageHandler(filters.Regex("^👤 About$"), about))
 
-    app.add_handler(MessageHandler(filters.Regex("^⚙️ Settings$"), settings_menu))
-    app.add_handler(CallbackQueryHandler(settings_callback, pattern="^toggle_alerts$"))
-
-    app.add_handler(MessageHandler(filters.Regex("^(❌ Cancel)$"), handle_cancel))
-    app.add_handler(
-        MessageHandler(
-            filters.Regex("^(🎁 Scholarship Calculator)$"), show_not_implemented
-        )
-    )
-
-    app.add_error_handler(error_handler)
+    app.add_handler(CallbackQueryHandler(academic_info_callback, pattern="^acad_"))
 
     port = int(os.environ.get("PORT", 10000))
     webhook_url = os.environ.get("WEBHOOK_URL")
 
     if webhook_url:
+        logger.info(f"Starting Webhook on port {port}...")
         app.run_webhook(
             listen="0.0.0.0",
             port=port,
