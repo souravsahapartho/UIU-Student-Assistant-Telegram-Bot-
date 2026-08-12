@@ -1,5 +1,3 @@
-
-
 (
     CGPA_MENU_CHOICE,
     CGPA_PREV_CREDITS,
@@ -19,4 +17,8 @@
 ) = range(10, 15)
 
 
-ADMIN_MENU, ADMIN_SETTING_EDIT = range(20, 22)
+(
+    ADMIN_MENU,
+    ADMIN_SETTING_EDIT,
+    ADMIN_BROADCAST_MESSAGE,
+) = range(20, 23)
