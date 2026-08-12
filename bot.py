@@ -1,7 +1,6 @@
 import os
 import asyncio
 import sys
-import logging
 from dotenv import load_dotenv
 from telegram import Update
 from telegram.ext import (
@@ -11,8 +10,9 @@ from telegram.ext import (
     CallbackQueryHandler,
     ConversationHandler,
     filters,
-    ContextTypes,
 )
+import uvicorn
+from fastapi import FastAPI, Request, Response
 from config import Config
 from handlers.general import (
     start,
@@ -23,7 +23,6 @@ from handlers.general import (
     notices,
     academic_calendar,
     academic_info_callback,
-    check_uiu_notices,
 )
 from handlers.cgpa import (
     cgpa_start,
@@ -38,13 +37,13 @@ from handlers.cgpa import (
 from handlers.fee import (
     fee_start,
     get_reg_credits,
-    get_retake_count,
+    get_retake_courses,
     get_retake_credits,
-    get_discount_type,
-    get_discount_percent,
+    get_scholarship,
+    get_waiver,
     fee_cancel,
 )
-from handlers.admin import admin_panel
+from handlers.admin import admin_panel, set_config, admin_broadcast, broadcast_message
 from states import (
     CGPA_MENU_CHOICE,
     CGPA_PREV_CREDITS,
@@ -55,33 +54,27 @@ from states import (
     FEE_REG_CREDITS,
     FEE_RETAKE_COUNT,
     FEE_RETAKE_CREDITS,
-    FEE_DISCOUNT_TYPE,
-    FEE_DISCOUNT_PERCENT,
+    FEE_SCHOLARSHIP,
+    FEE_WAIVER,
+    ADMIN_BROADCAST_MESSAGE,
 )
 from database import init_db
 
-logging.basicConfig(
-    format="%(asctime)s - %(name)s - %(levelname)s - %(message)s", level=logging.INFO
-)
-logger = logging.getLogger(__name__)
+load_dotenv()
+
+app = FastAPI()
+ptb = Application.builder().token(Config.BOT_TOKEN).build()
 
 
-def main():
-    if sys.platform == "win32":
-        asyncio.set_event_loop_policy(asyncio.WindowsSelectorEventLoopPolicy())
-
-    load_dotenv()
+@app.on_event("startup")
+async def startup_event():
     init_db()
 
-    app = Application.builder().token(Config.BOT_TOKEN).build()
-
-    if app.job_queue:
-        app.job_queue.run_repeating(check_uiu_notices, interval=1800, first=10)
-
-    app.add_handler(CommandHandler("start", start))
-    app.add_handler(CommandHandler("help", help_command))
-    app.add_handler(CommandHandler("about", about))
-    app.add_handler(CommandHandler("admin", admin_panel))
+    ptb.add_handler(CommandHandler("start", start))
+    ptb.add_handler(CommandHandler("help", help_command))
+    ptb.add_handler(CommandHandler("about", about))
+    ptb.add_handler(CommandHandler("admin", admin_panel))
+    ptb.add_handler(CommandHandler("set", set_config))
 
     cgpa_conv_handler = ConversationHandler(
         entry_points=[
@@ -123,7 +116,7 @@ def main():
         ],
         per_user=True,
     )
-    app.add_handler(cgpa_conv_handler)
+    ptb.add_handler(cgpa_conv_handler)
 
     fee_conv_handler = ConversationHandler(
         entry_points=[MessageHandler(filters.Regex("^💰 Fee Calculator$"), fee_start)],
@@ -135,7 +128,7 @@ def main():
             ],
             FEE_RETAKE_COUNT: [
                 MessageHandler(
-                    filters.TEXT & ~filters.Regex("^❌ Cancel$"), get_retake_count
+                    filters.TEXT & ~filters.Regex("^❌ Cancel$"), get_retake_courses
                 )
             ],
             FEE_RETAKE_CREDITS: [
@@ -143,15 +136,13 @@ def main():
                     filters.TEXT & ~filters.Regex("^❌ Cancel$"), get_retake_credits
                 )
             ],
-            FEE_DISCOUNT_TYPE: [
+            FEE_SCHOLARSHIP: [
                 MessageHandler(
-                    filters.TEXT & ~filters.Regex("^❌ Cancel$"), get_discount_type
+                    filters.TEXT & ~filters.Regex("^❌ Cancel$"), get_scholarship
                 )
             ],
-            FEE_DISCOUNT_PERCENT: [
-                MessageHandler(
-                    filters.TEXT & ~filters.Regex("^❌ Cancel$"), get_discount_percent
-                )
+            FEE_WAIVER: [
+                MessageHandler(filters.TEXT & ~filters.Regex("^❌ Cancel$"), get_waiver)
             ],
         },
         fallbacks=[
@@ -160,38 +151,65 @@ def main():
         ],
         per_user=True,
     )
-    app.add_handler(fee_conv_handler)
+    ptb.add_handler(fee_conv_handler)
 
-    app.add_handler(
+    admin_broadcast_handler = ConversationHandler(
+        entry_points=[CommandHandler("broadcast", admin_broadcast)],
+        states={
+            ADMIN_BROADCAST_MESSAGE: [
+                MessageHandler(filters.TEXT & ~filters.Command, broadcast_message)
+            ],
+        },
+        fallbacks=[],
+        per_user=True,
+    )
+    ptb.add_handler(admin_broadcast_handler)
+
+    ptb.add_handler(
         MessageHandler(filters.Regex("^📚 Academic Information$"), academic_info)
     )
-    app.add_handler(
+    ptb.add_handler(
         MessageHandler(filters.Regex("^🔗 Important Links$"), important_links)
     )
-    app.add_handler(MessageHandler(filters.Regex("^📢 Notices$"), notices))
-    app.add_handler(
+    ptb.add_handler(MessageHandler(filters.Regex("^📢 Notices$"), notices))
+    ptb.add_handler(
         MessageHandler(filters.Regex("^📅 Academic Calendar$"), academic_calendar)
     )
-    app.add_handler(MessageHandler(filters.Regex("^❓ Help$"), help_command))
-    app.add_handler(MessageHandler(filters.Regex("^👤 About$"), about))
+    ptb.add_handler(MessageHandler(filters.Regex("^❓ Help$"), help_command))
+    ptb.add_handler(MessageHandler(filters.Regex("^👤 About$"), about))
+    ptb.add_handler(CallbackQueryHandler(academic_info_callback, pattern="^acad_"))
 
-    app.add_handler(CallbackQueryHandler(academic_info_callback, pattern="^acad_"))
+    await ptb.initialize()
+    await ptb.start()
 
-    port = int(os.environ.get("PORT", 10000))
     webhook_url = os.environ.get("WEBHOOK_URL")
-
     if webhook_url:
-        logger.info(f"Starting Webhook on port {port}...")
-        app.run_webhook(
-            listen="0.0.0.0",
-            port=port,
-            url_path=Config.BOT_TOKEN,
-            webhook_url=f"{webhook_url}/{Config.BOT_TOKEN}",
+        await ptb.bot.set_webhook(
+            url=f"{webhook_url}/{Config.BOT_TOKEN}", drop_pending_updates=True
         )
-    else:
-        logger.info("UIU Smart Assistant is running on Polling mode...")
-        app.run_polling(allowed_updates=Update.ALL_TYPES)
+
+
+@app.on_event("shutdown")
+async def shutdown_event():
+    await ptb.stop()
+    await ptb.shutdown()
+
+
+@app.post("/{token}")
+async def process_update(request: Request, token: str):
+    if token == Config.BOT_TOKEN:
+        update_data = await request.json()
+        update = Update.de_json(update_data, ptb.bot)
+        await ptb.process_update(update)
+        return Response(status_code=200)
+    return Response(status_code=403)
+
+
+@app.get("/")
+async def health_check():
+    return {"status": "UIU Smart Assistant is running!"}
 
 
 if __name__ == "__main__":
-    main()
+    port = int(os.environ.get("PORT", 10000))
+    uvicorn.run(app, host="0.0.0.0", port=port)
