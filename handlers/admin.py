@@ -12,7 +12,6 @@ async def admin_panel(update: Update, context: ContextTypes.DEFAULT_TYPE):
         )
         return
 
-    # Extract command arguments
     args = context.args
     if not args:
         help_text = (

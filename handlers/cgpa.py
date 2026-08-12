@@ -15,7 +15,6 @@ from keyboards import (
     get_grade_keyboard,
 )
 
-# GPA Scale mapping
 GRADE_POINTS = {
     "A": 4.00,
     "A-": 3.67,
@@ -42,7 +41,6 @@ async def cgpa_start(update: Update, context: ContextTypes.DEFAULT_TYPE):
 
 
 async def cgpa_new_calc(update: Update, context: ContextTypes.DEFAULT_TYPE):
-    # Initialize state
     context.user_data["cgpa_data"] = {}
     await update.message.reply_text(
         "Step 1: Enter your previously completed credits. (e.g., 45)\nIf you are in your first semester, enter 0.",
@@ -159,7 +157,6 @@ async def get_course_grade(update: Update, context: ContextTypes.DEFAULT_TYPE):
         )
         return CGPA_COURSE_CREDIT
     else:
-        # Calculate CGPA
         return await calculate_final_cgpa(update, context)
 
 
@@ -171,7 +168,7 @@ async def calculate_final_cgpa(update: Update, context: ContextTypes.DEFAULT_TYP
 
     semester_gpa_credits = 0.0
     semester_quality_points = 0.0
-    total_semester_credits = 0.0  # Includes I, W, R
+    total_semester_credits = 0.0
 
     for c in courses:
         total_semester_credits += c["credit"]

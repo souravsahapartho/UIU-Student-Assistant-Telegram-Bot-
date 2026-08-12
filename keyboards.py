@@ -6,7 +6,6 @@ from telegram import (
 )
 
 
-# Main Menu Keyboard
 def get_main_menu():
     keyboard = [
         [KeyboardButton("🎓 CGPA Calculator"), KeyboardButton("💰 Fee Calculator")],

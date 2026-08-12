@@ -140,7 +140,6 @@ async def get_discount_percent(update: Update, context: ContextTypes.DEFAULT_TYP
 async def calculate_fees(update: Update, context: ContextTypes.DEFAULT_TYPE):
     data = context.user_data["fee_data"]
 
-    # Configs
     credit_fee = get_setting("CREDIT_FEE", Config.DEFAULT_CREDIT_FEE)
     trimester_fee = get_setting("TRIMESTER_FEE", Config.DEFAULT_TRIMESTER_FEE)
     other_fees = get_setting("OTHER_FEES", Config.DEFAULT_OTHER_FEES)
@@ -158,36 +157,28 @@ async def calculate_fees(update: Update, context: ContextTypes.DEFAULT_TYPE):
 
     regular_credits = reg_credits - total_retake_credits
     if regular_credits < 0:
-        regular_credits = 0  # Fallback safety
+        regular_credits = 0
 
     discount_type = data.get("discount_type", "None")
     discount_percent = data.get("discount_percent", 0)
 
-    # 1. Normal Tuition
     normal_tuition = regular_credits * credit_fee
 
-    # 2. Retake Tuition (50% rule)
     retake_tuition = (
         total_retake_credits * credit_fee * (1 - (retake_discount_pct / 100))
     )
 
-    # 3. Discount logic
     discount_amount = 0
     if discount_percent > 0:
         if "Scholarship" in discount_type:
-            # Applies to max 13 credits, only on regular credits
             eligible_credits = min(regular_credits, scholarship_limit)
             discount_amount = (eligible_credits * credit_fee) * (discount_percent / 100)
         elif "Waiver" in discount_type:
-            # Applies to all regular credits
             discount_amount = (regular_credits * credit_fee) * (discount_percent / 100)
 
-    # Total Payable
     total_payable = (
         normal_tuition + retake_tuition + trimester_fee + other_fees - discount_amount
     )
-
-    # Installments
     payment_plan = ""
     if total_payable <= min_payment:
         payment_plan = f"Registration Payment: {total_payable:,.2f} BDT\nRemaining Balance: 0.00 BDT"

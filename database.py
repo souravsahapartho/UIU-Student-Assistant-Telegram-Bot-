@@ -14,7 +14,6 @@ def init_db():
     conn = get_connection()
     cursor = conn.cursor()
 
-    # Users Table
     cursor.execute("""
         CREATE TABLE IF NOT EXISTS users (
             id INTEGER PRIMARY KEY AUTOINCREMENT,
@@ -26,7 +25,6 @@ def init_db():
         )
     """)
 
-    # Settings Table
     cursor.execute("""
         CREATE TABLE IF NOT EXISTS settings (
             key TEXT PRIMARY KEY,
@@ -35,7 +33,6 @@ def init_db():
         )
     """)
 
-    # Notices Table
     cursor.execute("""
         CREATE TABLE IF NOT EXISTS notices (
             id INTEGER PRIMARY KEY AUTOINCREMENT,
@@ -77,7 +74,6 @@ def get_setting(key: str, default: Any) -> Any:
 
     if row:
         try:
-            # Try to convert to float if it looks like a number
             val = float(row["value"])
             return int(val) if val.is_integer() else val
         except ValueError:

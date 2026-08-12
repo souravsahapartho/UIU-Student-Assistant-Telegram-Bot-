@@ -15,7 +15,6 @@ from config import Config
 from database import init_db
 from states import *
 
-# Handlers imports
 from handlers.general import (
     start,
     show_links,
@@ -60,24 +59,18 @@ async def error_handler(update: object, context: ContextTypes.DEFAULT_TYPE) -> N
 
 
 def main():
-    # --- Fix for Windows and newer Python versions ---
     if sys.platform == "win32":
         asyncio.set_event_loop_policy(asyncio.WindowsSelectorEventLoopPolicy())
     try:
         loop = asyncio.get_event_loop()
     except RuntimeError:
         asyncio.set_event_loop(asyncio.new_event_loop())
-    # -------------------------------------------------
 
-    # Setup
     Config.validate()
     init_db()
 
     app = Application.builder().token(Config.BOT_TOKEN).build()
 
-    # --- Conversation Handlers ---
-
-    # 1. CGPA Calculator Conversation
     cgpa_conv_handler = ConversationHandler(
         entry_points=[
             MessageHandler(filters.Regex("^🎓 CGPA Calculator$"), cgpa_start)
@@ -119,7 +112,6 @@ def main():
         per_user=True,
     )
 
-    # 2. Fee Calculator Conversation
     fee_conv_handler = ConversationHandler(
         entry_points=[MessageHandler(filters.Regex("^💰 Fee Calculator$"), fee_start)],
         states={
@@ -163,13 +155,11 @@ def main():
     app.add_handler(cgpa_conv_handler)
     app.add_handler(fee_conv_handler)
 
-    # Menu Button Handlers
     app.add_handler(MessageHandler(filters.Regex("^🔗 Important Links$"), show_links))
     app.add_handler(MessageHandler(filters.Regex("^👤 About$"), show_about))
     app.add_handler(MessageHandler(filters.Regex("^❓ Help$"), show_help))
     app.add_handler(MessageHandler(filters.Regex("^(❌ Cancel)$"), handle_cancel))
 
-    # Unimplemented Placeholders (To satisfy structural requirement smoothly)
     app.add_handler(
         MessageHandler(
             filters.Regex(
@@ -179,7 +169,6 @@ def main():
         )
     )
 
-    # Error Handler
     app.add_error_handler(error_handler)
 
     print("UIU Smart Assistant is running...")

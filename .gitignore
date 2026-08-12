@@ -1,0 +1,27 @@
+Environments
+
+venv/
+env/
+.venv/
+
+Environment Variables (Security)
+
+.env
+
+Database (Do not upload user data)
+
+*.db
+*.sqlite3
+uiu_assistant.db
+
+Python Cache
+
+pycache/
+*.py[cod]
+*$py.class
+
+IDE / Editor Files
+
+.vscode/
+.idea/
+*.swp
