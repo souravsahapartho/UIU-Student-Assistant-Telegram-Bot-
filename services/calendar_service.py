@@ -1,16 +1,42 @@
 import re
 import httpx
 from bs4 import BeautifulSoup
+from urllib.parse import urljoin
 
 CALENDAR_URL = "https://www.uiu.ac.bd/academics/calendar/"
 
 HEADERS = {
     "User-Agent": (
         "Mozilla/5.0 (Windows NT 10.0; Win64; x64) "
-        "AppleWebKit/537.36 (KHTML, like Gecko) "
+        "AppleWebKit/537.36 "
+        "(KHTML, like Gecko) "
         "Chrome/151.0 Safari/537.36"
     )
 }
+
+CALENDAR_TITLE_PATTERNS = [
+    r"\b\d{4}\b.*semester",
+    r"\b\d{4}\b.*trimester",
+    r"\b\d{4}\b.*b\.?\s*pharm",
+    r"\b\d{4}\b.*b pharm",
+]
+
+BLOCKED_TERMS = [
+    "news",
+    "notice",
+    "notices",
+    "event",
+    "events",
+    "scholarship award",
+    "course enrollment",
+    "gymnasium",
+    "orientation notice",
+    "seminar",
+    "workshop",
+    "spotlight",
+    "download pdf",
+    "view more",
+]
 
 
 def clean_text(text):
@@ -21,68 +47,33 @@ def clean_text(text):
     ).strip()
 
 
-def normalize_url(url):
-    if not url:
-        return ""
-
-    url = url.strip()
-
-    if url.startswith("//"):
-        return "https:" + url
-
-    if url.startswith("/"):
-        return "https://www.uiu.ac.bd" + url
-
-    return url
-
-
-def is_calendar_url(url):
-    if not url:
-        return False
-
-    url = normalize_url(url)
-
-    if "/academics/calendar/" not in url:
-        return False
-
-    if url.rstrip("/") == CALENDAR_URL.rstrip("/"):
-        return False
-
-    return True
-
-
-def is_real_calendar_title(title):
+def normalize_title(title):
     title = clean_text(title)
+
+    title = title.replace(
+        "\xa0",
+        " ",
+    )
+
+    title = re.sub(
+        r"\s+",
+        " ",
+        title,
+    )
+
+    return title.strip()
+
+
+def is_calendar_title(title):
+    title = normalize_title(title)
 
     if not title:
         return False
 
     lower = title.lower()
 
-    if len(title) < 10:
+    if any(term in lower for term in BLOCKED_TERMS):
         return False
-
-    blocked = [
-        "notice",
-        "notices",
-        "event",
-        "events",
-        "scholarship award list",
-        "course enrollment",
-        "orientation notice",
-        "gymnasium",
-        "admission test",
-        "seminar",
-        "workshop",
-        "spotlight",
-        "download pdf",
-        "view more",
-        "print",
-    ]
-
-    for word in blocked:
-        if word in lower:
-            return False
 
     if not re.search(
         r"\b20\d{2}\b",
@@ -90,15 +81,73 @@ def is_real_calendar_title(title):
     ):
         return False
 
-    calendar_words = [
-        "semester",
-        "trimester",
-        "b. pharm",
-        "b pharm",
-        "pharm.",
-    ]
+    for pattern in CALENDAR_TITLE_PATTERNS:
+        if re.search(
+            pattern,
+            lower,
+        ):
+            return True
 
-    return any(word in lower for word in calendar_words)
+    return False
+
+
+def slugify(text):
+    text = normalize_title(text)
+
+    text = text.replace(
+        "[Revised]",
+        " revised",
+    )
+
+    text = text.replace(
+        "[revised]",
+        " revised",
+    )
+
+    text = text.replace(
+        "&",
+        " and ",
+    )
+
+    text = text.replace(
+        "/",
+        " ",
+    )
+
+    text = text.replace(
+        "(",
+        " ",
+    )
+
+    text = text.replace(
+        ")",
+        " ",
+    )
+
+    text = text.replace(
+        ".",
+        "",
+    )
+
+    text = re.sub(
+        r"[^a-zA-Z0-9\s-]",
+        "",
+        text,
+    )
+
+    text = re.sub(
+        r"[\s-]+",
+        "-",
+        text,
+    )
+
+    return text.strip("-").lower()
+
+
+def make_calendar_url(title):
+    slug = slugify(title)
+
+    return "https://www.uiu.ac.bd/" "academics/calendar/" f"{slug}/"
 
 
 def extract_year(title):
@@ -113,35 +162,11 @@ def extract_year(title):
     return ""
 
 
-def extract_title_from_link(link):
-    title = clean_text(
-        link.get_text(
-            " ",
-            strip=True,
-        )
-    )
+def extract_titles_from_page(soup):
+    titles = []
+    seen = set()
 
-    if title:
-        return title
-
-    image = link.find("img")
-
-    if image:
-        alt = clean_text(
-            image.get(
-                "alt",
-                "",
-            )
-        )
-
-        if alt:
-            return alt
-
-    return ""
-
-
-def find_calendar_section(soup):
-    headings = soup.find_all(
+    for tag in soup.find_all(
         [
             "h1",
             "h2",
@@ -149,117 +174,89 @@ def find_calendar_section(soup):
             "h4",
             "h5",
             "h6",
+            "a",
+            "button",
+            "div",
+            "span",
         ]
+    ):
+        text = normalize_title(
+            tag.get_text(
+                " ",
+                strip=True,
+            )
+        )
+
+        if not is_calendar_title(text):
+            continue
+
+        key = text.lower()
+
+        if key in seen:
+            continue
+
+        seen.add(key)
+
+        titles.append(text)
+
+    return titles
+
+
+def extract_calendar_titles(html):
+    soup = BeautifulSoup(
+        html,
+        "html.parser",
     )
 
-    for heading in headings:
-        text = clean_text(
-            heading.get_text(
-                " ",
-                strip=True,
-            )
-        )
+    page_text = soup.get_text(
+        "\n",
+        strip=True,
+    )
 
-        if text.lower() == "academic calendar":
-            return heading
+    lines = [normalize_title(line) for line in page_text.splitlines()]
 
-    return None
+    titles = []
+    seen = set()
 
-
-def extract_from_section(section):
-    results = []
-    seen_urls = set()
-
-    if not section:
-        return results
-
-    current = section
-
-    for _ in range(20):
-        current = current.find_next_sibling()
-
-        if not current:
-            break
-
-        text = clean_text(
-            current.get_text(
-                " ",
-                strip=True,
-            )
-        )
-
-        lower = text.lower()
-
-        if lower.startswith("notices"):
-            break
-
-        if lower.startswith("events"):
-            break
-
-        for link in current.find_all(
-            "a",
-            href=True,
-        ):
-            url = normalize_url(
-                link.get(
-                    "href",
-                    "",
-                )
-            )
-
-            if not is_calendar_url(url):
-                continue
-
-            title = extract_title_from_link(link)
-
-            if not is_real_calendar_title(title):
-                continue
-
-            if url in seen_urls:
-                continue
-
-            seen_urls.add(url)
-
-            results.append(
-                {
-                    "title": title,
-                    "url": url,
-                    "year": extract_year(title),
-                }
-            )
-
-    return results
-
-
-def extract_from_all_calendar_links(soup):
-    results = []
-    seen_urls = set()
-
-    for link in soup.find_all(
-        "a",
-        href=True,
-    ):
-        url = normalize_url(
-            link.get(
-                "href",
-                "",
-            )
-        )
-
-        if not is_calendar_url(url):
+    for line in lines:
+        if not is_calendar_title(line):
             continue
 
-        title = extract_title_from_link(link)
+        key = line.lower()
 
-        if not is_real_calendar_title(title):
+        if key in seen:
             continue
 
-        if url in seen_urls:
+        seen.add(key)
+
+        titles.append(line)
+
+    if titles:
+        return titles
+
+    return extract_titles_from_page(soup)
+
+
+def build_calendar_entries(titles):
+    entries = []
+    seen = set()
+
+    for title in titles:
+        title = normalize_title(title)
+
+        if not is_calendar_title(title):
             continue
 
-        seen_urls.add(url)
+        key = title.lower()
 
-        results.append(
+        if key in seen:
+            continue
+
+        seen.add(key)
+
+        url = make_calendar_url(title)
+
+        entries.append(
             {
                 "title": title,
                 "url": url,
@@ -267,36 +264,7 @@ def extract_from_all_calendar_links(soup):
             }
         )
 
-    return results
-
-
-def extract_calendar_entries(html):
-    soup = BeautifulSoup(
-        html,
-        "html.parser",
-    )
-
-    section = find_calendar_section(soup)
-
-    results = extract_from_section(section)
-
-    if not results:
-        results = extract_from_all_calendar_links(soup)
-
-    unique = []
-    seen = set()
-
-    for item in results:
-        key = item["url"].rstrip("/").lower()
-
-        if key in seen:
-            continue
-
-        seen.add(key)
-
-        unique.append(item)
-
-    return unique
+    return entries
 
 
 async def fetch_calendars():
@@ -310,7 +278,11 @@ async def fetch_calendars():
 
         response.raise_for_status()
 
-        return extract_calendar_entries(response.text)
+        titles = extract_calendar_titles(response.text)
+
+        entries = build_calendar_entries(titles)
+
+        return entries
 
 
 async def get_latest_calendars(
@@ -322,10 +294,10 @@ async def get_latest_calendars(
 
 
 async def sync_calendars():
-    current = await fetch_calendars()
+    calendars = await fetch_calendars()
 
     return {
         "new": [],
         "updated": [],
-        "calendars": current,
+        "calendars": calendars,
     }
