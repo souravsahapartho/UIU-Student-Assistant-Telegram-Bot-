@@ -1,66 +1,38 @@
-# 🎓 UIU Student Assistant
+# 🎓 UIU Smart Assistant
 
-A Telegram bot built for **United International University (UIU)** students to make everyday academic tasks easier.
+**UIU Smart Assistant** is a Telegram bot built to make everyday academic tasks easier for students of **United International University (UIU)**.
 
-Instead of checking different places for CGPA calculations, fee estimates, academic information, scholarship-related calculations, registration links, and other useful resources, students can access them directly from Telegram through a simple button-based interface.
+The idea behind the project is simple: instead of checking different websites, doing calculations manually, or going through the same information repeatedly, students can get many useful academic tools and resources directly from Telegram.
 
-The project is built with Python and is designed to be lightweight, modular, and easy to maintain.
-
----
-
-## 📌 What is UIU Student Assistant?
-
-UIU Student Assistant is a student-focused Telegram bot that brings several commonly used academic utilities into one place.
-
-The main idea behind the project is simple:
-
-> **Students should be able to get common academic information and calculations without going through unnecessary steps.**
-
-The bot currently includes:
-
-- 🧮 CGPA Calculator
-- 💰 Fee Calculator
-- 🎓 Scholarship Chance Estimator
-- 📚 Academic Information
-- 📊 Grading System
-- 🎓 Credit System
-- 🔄 Retake Course Policy
-- 📝 Course Registration Links
-- 🎓 Admission Information
-- 🎓 Graduation / Convocation Information
-- 📅 Academic Calendar
-- ⚙️ User Settings
-- 👨‍💼 Admin Features
+The bot provides a simple button-based interface and guides users through different tasks step by step.
 
 ---
 
-# ✨ Main Features
+## ✨ Features
 
-## 🧮 CGPA Calculator
+### 🧮 CGPA Calculator
 
-The CGPA calculator allows students to calculate their CGPA by entering their previous academic information and current course results.
+The CGPA calculator helps students calculate their current or expected CGPA without doing the calculations manually.
 
-The calculation flow can handle:
+It supports:
 
-- Previous credits
 - Previous CGPA
-- Number of courses
+- Previous completed credits
+- Number of current courses
 - Course credits
 - Course grades
-- Multiple courses
+- Multiple course entries
 - UIU grading system
 
-The grading system can also be accessed while using the calculator, so students do not have to leave the calculation flow just to check a grade point.
-
-The goal is to keep the process simple and avoid asking unnecessary questions.
+The grading system is also available during the calculation process, so users can check grade points without leaving the calculator.
 
 ---
 
-## 💰 Fee Calculator
+### 💰 Fee Calculator
 
-The fee calculator provides an estimated academic fee based on the information provided by the student.
+The fee calculator gives students an estimated idea of how much they may need to pay for a trimester.
 
-It can take into account:
+It can consider:
 
 - Academic system
 - Credit fee
@@ -71,105 +43,79 @@ It can take into account:
 - Discount type
 - Discount percentage
 
-Since fees can depend on different academic and university-specific conditions, the result should be treated as an estimate rather than an official billing amount.
+The result is an estimate based on the information provided by the user and should not be considered an official university bill.
 
 ---
 
-# 🎓 Scholarship Chance Estimator
+### 🎓 Scholarship Chance Estimator
 
-One of the more interesting features of the bot is the scholarship chance estimator.
+The Scholarship Chance Estimator is designed to give students an idea of their possible merit scholarship outcome based on their academic information.
 
-The purpose of this feature is not to claim an exact ranking. Instead, it gives students an idea of how their scholarship chances may look based on the information they provide.
-
-The estimator uses:
+It takes information such as:
 
 - Previous GPA
 - Academic program
-- Approximate program size
+- Approximate number of students in the program
 - Qualifying credits
 - Estimated number of students with a higher GPA
 
----
+The calculator has two simple options.
 
-## Two Ways to Use the Estimator
+#### 📊 I Have an Estimate
 
-### 📊 I Have an Estimate
-
-If a student has an idea of how many students might have a higher GPA, they can enter that number.
+If the student already has an idea about how many students may have a higher GPA, they can enter that number.
 
 For example:
 
 ```text
 18
-```
+````
 
-The number is then used by the estimation system to simulate possible ranking outcomes.
+The provided number is then used in the calculation.
 
----
+#### 🤷 I Don't Know
 
-### 🤷 I Don't Know
-
-If the student has no idea how many students may have a higher GPA, they can simply choose:
+If the student doesn't know how many students may have a higher GPA, they can simply select:
 
 ```text
 🤷 I don't know
 ```
 
-The system then makes a statistical estimate using the available information, mainly the student's GPA and the approximate program size.
+The system will make a statistical estimate based on the available information.
 
-This means students don't have to guess a number just to use the calculator.
+This way, users don't have to guess a number just to use the calculator.
 
 ---
 
-# 🧠 How the Scholarship Estimator Works
+## 🧠 How the Scholarship Estimator Works
 
-The current scholarship estimator **does not use an AI or Machine Learning model**.
+The current scholarship estimator does **not use an AI or Machine Learning model**.
 
-It uses a statistical approach combined with Monte Carlo simulation.
+Instead, it uses a statistical approach combined with **Monte Carlo simulation**.
 
-In simple terms, the system does not say:
-
-> "Your exact position is X."
-
-Instead, it considers a range of possible situations and checks how often the student falls into each scholarship bracket.
-
-The process roughly looks like this:
+The basic process is:
 
 ```text
 Student Information
-       ↓
+        ↓
 Eligibility Check
-       ↓
+        ↓
 Estimate Higher-GPA Students
-       ↓
+        ↓
 Generate Possible Ranking Scenarios
-       ↓
+        ↓
 Run Monte Carlo Simulation
-       ↓
-Classify Each Result
-       ↓
-Calculate Estimated Chances
-       ↓
-Show Result
+        ↓
+Calculate Scholarship Outcomes
+        ↓
+Show Estimated Result
 ```
 
----
+The estimator runs around **10,000 simulations** for a calculation.
 
-## 🎲 Monte Carlo Simulation
+Each simulation represents a possible ranking scenario. After running the simulations, the results are grouped into the different scholarship categories.
 
-The current implementation runs around:
-
-```text
-10,000 simulations
-```
-
-for an estimation.
-
-For each simulation, the system generates a possible ranking scenario.
-
-After all simulations are completed, the results are grouped into scholarship categories.
-
-For example, the output may look like:
+For example, the result may look like:
 
 ```text
 100% Scholarship → 5%
@@ -178,182 +124,153 @@ For example, the output may look like:
 No Scholarship   → <1%
 ```
 
-These numbers describe the simulated outcomes.
-
-They are **not official UIU scholarship probabilities**.
+These percentages are based on the simulation and are **not official UIU scholarship probabilities**.
 
 ---
 
-# 🏆 Scholarship Brackets
+## 🏆 Scholarship Brackets
 
-The current estimator follows this ranking structure:
+The current estimator uses the following ranking structure:
 
-| Ranking            |    Scholarship |
-| ------------------ | -------------: |
-| Top 2%             |           100% |
-| Next 4%            |            50% |
-| Next 4%            |            25% |
-| Remaining students | No Scholarship |
+| Ranking   |    Scholarship |
+| --------- | -------------: |
+| Top 2%    |           100% |
+| Next 4%   |            50% |
+| Next 4%   |            25% |
+| Remaining | No Scholarship |
 
-Eligibility requirements are checked before the ranking estimation.
-
----
-
-# 📈 Confidence
-
-The estimator also shows an approximate confidence level:
-
-- Low
-- Medium
-- High
-
-For example, when the student provides an estimated number of higher-GPA students, the system has more information to work with and may produce a higher confidence level.
-
-This confidence value is simply an indicator of how much information was available to the estimator.
-
-It is **not an official statistical confidence interval**.
+The system checks the relevant eligibility requirements before estimating the scholarship outcome.
 
 ---
 
-# ⚠️ Important Scholarship Disclaimer
+## 📈 Confidence
 
-The scholarship estimator is only an **approximate statistical estimate**.
+The scholarship estimator also shows an approximate confidence level:
 
-It is not:
+* Low
+* Medium
+* High
 
-- An official UIU ranking
-- An exact position
-- A guaranteed scholarship
-- An official scholarship probability
-- A replacement for UIU's actual scholarship decision
+If the user provides more useful information, such as an estimated number of higher-GPA students, the system has more information to work with.
+
+The confidence level is only an indicator of the quality of the available input. It is **not an official statistical confidence interval**.
+
+---
+
+## ⚠️ Important Note About Scholarship Estimates
+
+The scholarship calculator is only an **approximate statistical estimator**.
+
+It is **not**:
+
+* An official UIU ranking system
+* An exact ranking calculator
+* A guaranteed scholarship prediction
+* An official scholarship probability calculator
+* A replacement for UIU's actual scholarship decision
 
 Final scholarship decisions are made by UIU according to the university's applicable rules and the actual academic performance of students.
 
-Students should always verify the latest official UIU regulations before relying on scholarship-related information.
+Students should always check the latest official UIU rules before making decisions based on scholarship-related information.
 
-The estimator also considers applicable eligibility requirements and excludes courses such as:
+The estimator also considers applicable course and credit restrictions, including exclusions such as:
 
-- Thesis
-- Project
-- Internship
-- Retake
-- Repeat
+* Thesis
+* Project
+* Internship
+* Retake
+* Repeat courses
 
-where applicable to the estimation.
+where applicable.
 
 ---
 
 # 📚 Academic Information
 
-The bot provides commonly needed academic information directly through the Academic Information menu.
+The bot includes an **Academic Information** section where students can quickly find commonly needed UIU information.
 
 Currently available sections include:
 
 ### 🎓 Credit System
 
-Provides an overview of UIU's credit-hour-based academic system, including:
+Provides a simple explanation of:
 
-- Credit hour concept
-- Typical theory course credits
-- Typical laboratory course credits
-- Project / thesis credit information
-- Degree completion requirements
+* Credit hours
+* Theory course credits
+* Laboratory course credits
+* Project / thesis credits
+* Degree completion requirements
 
-The bot also reminds students that exact credit requirements can vary by program and curriculum revision.
+The bot also reminds users that exact credit requirements may vary depending on the program and curriculum.
 
 ---
 
 ### 🔄 Retake Course Policy
 
-Provides information about UIU retake courses, including the first-time retake discount.
+Provides information about UIU's retake policy, including:
 
-The bot explains:
-
-- First-time retake discount
-- Retake registration
-- Effect on academic records
-- Possible CGPA implications
-- The need to verify the latest university rules
+* First-time retake discount
+* Retake registration
+* Academic record considerations
+* Possible CGPA effects
+* Important points to verify before registration
 
 ---
 
 ### 📝 Course Registration
 
-Provides direct access to UIU's registration-related portals.
+Provides direct access to the UIU registration portals.
 
-Students can access:
+The bot includes:
 
-- UCam Cloud
-- UCam — UIU
+* UCam Cloud
+* UCam — UIU
 
-The bot provides the links directly so students can quickly open the required portal.
+Users can simply tap the appropriate button and open the registration portal.
 
 ---
 
 ### 📊 Grading System
 
-The bot provides the grading system used by the CGPA calculator so students can easily understand the relationship between grades and grade points.
+The bot provides the grading system used by the CGPA calculator so that students can easily understand grades and their corresponding grade points.
 
 ---
 
 ### 📅 Academic Calendar
 
-The bot also includes an academic calendar checking system.
+The bot also includes an academic calendar checker.
 
-A scheduled background job periodically checks the UIU academic calendar source for relevant updates.
+A scheduled background task periodically checks the UIU academic calendar source for updates.
 
 ---
 
-# ⚙️ User Experience
+# 👤 User Experience
 
-A major focus of the project is keeping the bot easy to use.
+One of the main goals of the project is to keep the bot simple.
 
-The interface is mainly button-based, so users don't have to remember complicated commands.
+Instead of making users type complicated commands, most features are accessible through buttons.
 
-For multi-step features such as CGPA, fee, and scholarship calculations, the bot guides the user through the required information one step at a time.
+For multi-step features such as:
 
-Where appropriate, users can cancel the current operation using:
+* CGPA calculation
+* Fee calculation
+* Scholarship estimation
+
+the bot asks only for the information it actually needs.
+
+Where appropriate, users can cancel an ongoing process using:
 
 ```text
 ❌ Cancel
 ```
 
-This prevents users from getting stuck inside a calculation flow.
+After cancelling, the user can return to the main menu and start another feature.
 
 ---
 
-# 🏗️ Project Architecture
+# 🏗️ Project Structure
 
-The project is divided into several parts so that each feature can be maintained independently.
-
-```text
-Telegram User
-      │
-      ▼
-Telegram Bot API
-      │
-      ▼
-FastAPI
-      │
-      ▼
-python-telegram-bot
-      │
-      ├───────────────┐
-      │               │
-      ▼               ▼
-  Handlers         Services
-      │               │
-      └───────┬───────┘
-              │
-              ▼
-           TiDB
-```
-
-The main idea is to keep Telegram-specific interaction code separate from the actual calculation and business logic.
-
----
-
-# 📁 Project Structure
+The project is organized into separate modules so that different parts of the bot can be maintained independently.
 
 ```text
 Telegram-Uni-Bot/
@@ -365,7 +282,6 @@ Telegram-Uni-Bot/
 ├── keyboards.py
 ├── requirements.txt
 ├── .gitignore
-├── .env
 │
 ├── handlers/
 │   ├── admin.py
@@ -383,30 +299,29 @@ Telegram-Uni-Bot/
 
 ---
 
-# 📄 Important Files
+# 📄 Main Files
 
-## `bot.py`
+### `bot.py`
 
 This is the main entry point of the application.
 
-It handles things such as:
+It is responsible for:
 
-- FastAPI setup
-- Telegram application setup
-- Handler registration
-- Webhook configuration
-- Scheduled jobs
-- Application startup
-- Application shutdown
-- Health endpoint
+* Starting FastAPI
+* Initializing the Telegram bot
+* Registering handlers
+* Configuring the webhook
+* Starting scheduled tasks
+* Managing application startup and shutdown
+* Providing the health endpoint
 
 ---
 
-## `config.py`
+### `config.py`
 
-Stores application-level configuration.
+Contains the main configuration used by the application.
 
-Some of the important settings include:
+Some of the configuration values include:
 
 ```python
 BOT_TOKEN
@@ -428,41 +343,37 @@ INSTALLMENT_2_PERCENT
 INSTALLMENT_3_PERCENT
 ```
 
-The bot token is loaded from the environment:
-
-```python
-BOT_TOKEN = os.getenv("BOT_TOKEN")
-```
+Sensitive values such as the bot token are loaded from environment variables.
 
 ---
 
-## `database.py`
+### `database.py`
 
 Handles the database connection and initialization.
 
-The production application uses TiDB Cloud through its MySQL-compatible interface.
+The production version of the project uses **TiDB Cloud** as the main database.
 
 ---
 
-## `states.py`
+### `states.py`
 
-Contains the conversation state constants used by different ConversationHandlers.
+Contains the conversation states used by the different multi-step features.
 
-This keeps state management organized and prevents different features from accidentally using conflicting state values.
-
----
-
-## `keyboards.py`
-
-Contains reusable Telegram keyboards.
-
-Keeping keyboards in one place makes it easier to maintain the bot's interface.
+This keeps the ConversationHandlers organized and avoids state conflicts between different parts of the bot.
 
 ---
 
-## `handlers/`
+### `keyboards.py`
 
-This directory contains the Telegram interaction logic.
+Contains reusable Telegram keyboards and menu layouts.
+
+Keeping the keyboards in one place makes it easier to update the bot's interface later.
+
+---
+
+### `handlers/`
+
+The `handlers` directory contains the Telegram conversation logic for individual features.
 
 For example:
 
@@ -470,13 +381,13 @@ For example:
 handlers/cgpa.py
 ```
 
-handles the CGPA conversation.
+handles the CGPA calculation flow.
 
 ```text
 handlers/scholarship.py
 ```
 
-handles the scholarship conversation.
+handles the scholarship estimation flow.
 
 ```text
 handlers/fee.py
@@ -486,9 +397,9 @@ handles the fee calculation flow.
 
 ---
 
-## `services/`
+### `services/`
 
-This directory contains the actual business logic.
+The `services` directory contains the actual business logic.
 
 For example:
 
@@ -496,19 +407,25 @@ For example:
 services/scholarship_service.py
 ```
 
-contains the scholarship estimation engine.
+contains the scholarship estimation and Monte Carlo simulation logic.
 
-This means the scholarship calculation can be tested independently without running the Telegram bot.
+Keeping this logic outside the Telegram handler makes it easier to test and maintain.
 
 ---
 
 # 🗄️ Database
 
-The current production database is:
+The production version of the bot uses:
 
 ## TiDB Cloud
 
-TiDB is MySQL-compatible, which makes it convenient to use with Python's MySQL connectors.
+TiDB is MySQL-compatible, so the application can connect to it using a MySQL connector.
+
+The database connection is handled through:
+
+```text
+database.py
+```
 
 The project uses:
 
@@ -516,15 +433,13 @@ The project uses:
 mysql-connector-python
 ```
 
-for database connectivity.
-
-The database configuration is loaded from environment variables.
+for the connection.
 
 ---
 
-## Environment Variables
+## Database Configuration
 
-The application expects:
+The application expects the following environment variables:
 
 ```env
 TIDB_HOST=YOUR_TIDB_HOST
@@ -534,7 +449,7 @@ TIDB_PASSWORD=YOUR_TIDB_PASSWORD
 TIDB_DATABASE=YOUR_DATABASE
 ```
 
-The database tables are initialized when the application starts.
+The required tables are initialized when the application starts.
 
 A successful startup produces a message similar to:
 
@@ -544,40 +459,38 @@ TiDB tables initialized successfully.
 
 ---
 
-# 🗑️ SQLite Database
+## SQLite
 
-Earlier development versions used a local SQLite database.
+Earlier development versions of the project used a local SQLite database.
 
-The old file was:
+The old database file was:
 
 ```text
 uiu_assistant.db
 ```
 
-The current production version does not depend on that file.
+The current production version does not depend on this file.
 
-The production database is TiDB Cloud.
-
-Therefore, the SQLite database file does not need to be kept in the repository.
+The production database is TiDB Cloud, so the SQLite file does not need to be kept in the repository.
 
 ---
 
 # ⚙️ Technology Stack
 
-| Technology             | Purpose                         |
+| Technology             | Used For                        |
 | ---------------------- | ------------------------------- |
 | Python                 | Main programming language       |
-| python-telegram-bot    | Telegram bot framework          |
+| python-telegram-bot    | Telegram bot                    |
 | FastAPI                | Web server and webhook endpoint |
 | Uvicorn                | ASGI server                     |
-| TiDB Cloud             | Production database             |
+| TiDB Cloud             | Database                        |
 | mysql-connector-python | Database connection             |
 | HTTPX                  | HTTP requests                   |
-| BeautifulSoup4         | Web content parsing             |
+| BeautifulSoup4         | Web parsing                     |
 | Feedparser             | Feed / RSS parsing              |
 | APScheduler            | Scheduled tasks                 |
-| python-dotenv          | Environment configuration       |
-| Render                 | Deployment / hosting            |
+| python-dotenv          | Environment variables           |
+| Render                 | Deployment                      |
 
 ---
 
@@ -598,7 +511,7 @@ mysql-connector-python==9.4.0
 
 ---
 
-# 🚀 Getting Started
+# 🚀 Installation
 
 ## 1. Clone the Repository
 
@@ -606,7 +519,7 @@ mysql-connector-python==9.4.0
 git clone https://github.com/souravsahapartho/Telegram-Uni-Bot.git
 ```
 
-Then:
+Then enter the project directory:
 
 ```bash
 cd Telegram-Uni-Bot
@@ -622,7 +535,7 @@ On Windows:
 python -m venv venv
 ```
 
-For Git Bash:
+If you are using Git Bash:
 
 ```bash
 source venv/Scripts/activate
@@ -642,7 +555,7 @@ venv\Scripts\activate
 python -m pip install -r requirements.txt
 ```
 
-If needed:
+If required, install the database connector separately:
 
 ```bash
 python -m pip install mysql-connector-python==9.4.0
@@ -650,9 +563,9 @@ python -m pip install mysql-connector-python==9.4.0
 
 ---
 
-# 🔐 Environment Configuration
+# 🔐 Environment Variables
 
-Create a `.env` file in the project root.
+Create a `.env` file in the root directory.
 
 Example:
 
@@ -668,11 +581,13 @@ TIDB_PASSWORD=YOUR_TIDB_PASSWORD
 TIDB_DATABASE=YOUR_DATABASE
 ```
 
-Do not commit this file to GitHub.
+Do not use your real credentials in the README.
+
+Also make sure `.env` is included in `.gitignore`.
 
 ---
 
-# ▶️ Run the Bot Locally
+# ▶️ Run Locally
 
 Start the application with:
 
@@ -680,54 +595,56 @@ Start the application with:
 python bot.py
 ```
 
-A successful startup should look similar to:
+A successful local startup should look similar to:
 
 ```text
 TiDB tables initialized successfully.
 Application started.
 Academic calendar checker started.
 Local mode detected. Webhook configuration skipped.
-UIU Student Assistant is running.
+UIU Smart Assistant is running.
 Application startup complete.
 ```
 
-The FastAPI server may run locally at:
+The local server can run on:
 
 ```text
 http://0.0.0.0:10000
 ```
 
+depending on the configured port.
+
 ---
 
-# 🧪 Checking the Code Before Running
+# 🧪 Testing
 
-You can use Python's built-in compiler to check individual files.
+Before running the bot, you can check whether the Python files contain syntax errors.
 
-For `bot.py`:
+Check the main application:
 
 ```bash
 python -m py_compile bot.py
 ```
 
-For the CGPA handler:
+Check the CGPA handler:
 
 ```bash
 python -m py_compile handlers/cgpa.py
 ```
 
-For the scholarship handler:
+Check the scholarship handler:
 
 ```bash
 python -m py_compile handlers/scholarship.py
 ```
 
-For the scholarship service:
+Check the scholarship service:
 
 ```bash
 python -m py_compile services/scholarship_service.py
 ```
 
-For the database module:
+Check the database module:
 
 ```bash
 python -m py_compile database.py
@@ -735,9 +652,9 @@ python -m py_compile database.py
 
 ---
 
-# 🧮 Testing the Scholarship Engine
+# 🧮 Testing the Scholarship Calculator
 
-The scholarship calculation can be tested without opening Telegram.
+The scholarship calculation logic can be tested separately without starting Telegram.
 
 ### Without a Higher-GPA Estimate
 
@@ -751,13 +668,13 @@ python -c "from services.scholarship_service import *; r=generate_estimate(3.80,
 python -c "from services.scholarship_service import *; r=generate_estimate(3.80, 'BSCSE', 500, 14, 18); print(generate_result_text(r))"
 ```
 
-The second example assumes approximately 18 students have a higher GPA.
+The second example assumes that approximately 18 students have a higher GPA.
 
 ---
 
 # 🌐 Telegram Webhook
 
-For production, the bot uses Telegram's webhook system.
+For production, the bot uses Telegram Webhooks.
 
 The request flow is:
 
@@ -775,13 +692,13 @@ python-telegram-bot
 Handler
 ```
 
-The production webhook looks like:
+The webhook URL follows this format:
 
 ```text
-https://YOUR-SERVICE.onrender.com/telegram/webhook
+https://YOUR-RENDER-SERVICE.onrender.com/telegram/webhook
 ```
 
-When the webhook is configured successfully, the application logs something similar to:
+When it is configured successfully, the application logs something similar to:
 
 ```text
 Webhook configured: https://your-service.onrender.com/telegram/webhook
@@ -789,29 +706,29 @@ Webhook configured: https://your-service.onrender.com/telegram/webhook
 
 ---
 
-# 🖥️ Local and Production Modes
+# 🖥️ Local vs Production
 
-The bot behaves differently depending on where it is running.
+### Local Development
 
-### Local
+When the bot is running locally, webhook configuration is skipped.
 
-When running on a local machine:
+You may see:
 
 ```text
 Local mode detected. Webhook configuration skipped.
 ```
 
-This is expected because a local machine normally does not have a public HTTPS endpoint.
+This is normal because a local computer usually does not have a public HTTPS URL.
 
 ### Production
 
-On Render, the bot detects the production environment and configures the Telegram webhook automatically.
+When deployed on Render, the application configures the Telegram webhook using the public Render URL.
 
 ---
 
-# ☁️ Deployment on Render
+# ☁️ Deployment
 
-The application can be deployed as a Render Web Service.
+The bot is designed to run as a web service on **Render**.
 
 A typical start command is:
 
@@ -819,7 +736,7 @@ A typical start command is:
 uvicorn bot:app --host 0.0.0.0 --port $PORT
 ```
 
-Set the following environment variables in Render:
+The following environment variables should be added to the Render service:
 
 ```text
 BOT_TOKEN
@@ -831,13 +748,13 @@ TIDB_PASSWORD
 TIDB_DATABASE
 ```
 
-After deployment, Render provides a public HTTPS URL which is used for the Telegram webhook.
+After deployment, Render provides a public HTTPS URL that can be used for the Telegram webhook.
 
 ---
 
 # ❤️ Health Check
 
-The application provides:
+The application provides a health endpoint:
 
 ```text
 GET /health
@@ -849,17 +766,23 @@ A successful request returns:
 HTTP 200 OK
 ```
 
-Render can use this endpoint to check whether the service is alive.
+For example:
+
+```text
+GET /health HTTP/1.1" 200 OK
+```
+
+This endpoint can be used by Render to check whether the application is running properly.
 
 ---
 
 # 📅 Academic Calendar Checker
 
-The bot has a scheduled academic calendar checker.
+The bot includes a scheduled academic calendar checker.
 
-It periodically checks the UIU academic calendar source for changes.
+It periodically checks the UIU academic calendar source for updates.
 
-The scheduled task runs through the Telegram application's JobQueue.
+The task runs through the JobQueue provided by `python-telegram-bot`.
 
 Typical logs include:
 
@@ -885,9 +808,9 @@ Never commit:
 .env
 ```
 
-or credentials directly into the repository.
+to GitHub.
 
-A recommended `.gitignore` includes:
+A recommended `.gitignore` is:
 
 ```gitignore
 .env
@@ -899,20 +822,20 @@ __pycache__/
 
 Never expose:
 
-- Telegram Bot Token
-- TiDB Password
-- Database Credentials
-- API Keys
-- SMTP Credentials
-- JWT Secrets
+* Telegram Bot Token
+* TiDB Password
+* Database credentials
+* API keys
+* SMTP credentials
+* JWT secrets
 
-If a token or credential is accidentally exposed, revoke or rotate it immediately.
+If a Telegram bot token or another secret is accidentally exposed, revoke or rotate it immediately.
 
 ---
 
-# 🧹 Development Files
+# 🧹 Temporary Development Files
 
-Temporary testing files such as:
+During development, small testing files may be created, such as:
 
 ```text
 test_db.py
@@ -922,15 +845,13 @@ test_webhook.py
 init_test.py
 ```
 
-can be used during development.
-
-They do not need to remain in the production repository after testing is complete.
+These files are only for testing and do not need to remain in the production repository.
 
 ---
 
 # 🐛 Troubleshooting
 
-## FastAPI Not Found
+## FastAPI is not installed
 
 If you see:
 
@@ -946,23 +867,23 @@ python -m pip install -r requirements.txt
 
 ---
 
-## Telegram Token Error
+## Telegram Bot Token Error
 
-If the bot reports:
+If you see:
 
 ```text
 telegram.error.InvalidToken: Unauthorized
 ```
 
-check the `BOT_TOKEN` environment variable.
+check the `BOT_TOKEN` value in `.env` or the Render environment variables.
 
-If the token has been revoked, generate a new token and update it in both local and production environments.
+If the token was revoked, generate a new one and update the application.
 
 ---
 
 ## TiDB Connection Error
 
-Check all TiDB environment variables:
+Make sure these values are correct:
 
 ```env
 TIDB_HOST=
@@ -972,13 +893,13 @@ TIDB_PASSWORD=
 TIDB_DATABASE=
 ```
 
-If the application shows something like:
+If you see something like:
 
 ```text
 MySQL server on 'None:4000'
 ```
 
-then the environment variable was not loaded correctly.
+the environment variable was not loaded correctly.
 
 ---
 
@@ -990,9 +911,9 @@ If you see:
 CREATE command denied
 ```
 
-the database user does not have sufficient permission to create the required tables.
+the database user does not have enough permission to create the required tables.
 
-Use a database user with the necessary permissions during initial setup.
+Use a TiDB user with the required permissions during the initial database setup.
 
 ---
 
@@ -1000,80 +921,78 @@ Use a database user with the necessary permissions during initial setup.
 
 If Telegram reports a webhook or `401 Unauthorized` error:
 
-1. Check the current bot token.
-2. Verify that the token works with Telegram's `getMe` endpoint.
-3. Check the current webhook using `getWebhookInfo`.
-4. Make sure Render contains the latest token.
+1. Check the bot token.
+2. Test the token using Telegram's `getMe` endpoint.
+3. Check the webhook using `getWebhookInfo`.
+4. Make sure Render has the latest token.
 5. Redeploy after changing environment variables.
 
 ---
 
-# 🔮 Future Plans
+# 🔮 Future Improvements
 
-There are several directions in which the project can be improved.
+The project is still being developed, so there are several things that can be added later.
 
-Some possible additions include:
+Some possible improvements include:
 
-- 👤 Student profiles
-- 📊 CGPA history
-- 💰 Fee calculation history
-- 🎓 Scholarship estimation history
-- 📚 Course planning
-- 📅 Semester planning
-- 🔔 Academic notifications
-- 📢 UIU announcement monitoring
-- 📈 More detailed academic statistics
-- 👨‍💼 Better admin analytics
-- 🔗 Additional UIU service integrations
+* 👤 Student profiles
+* 📊 CGPA history
+* 💰 Fee calculation history
+* 🎓 Scholarship estimation history
+* 📚 Course planning
+* 📅 Semester planning
+* 🔔 Academic notifications
+* 📢 UIU announcement monitoring
+* 📈 More detailed academic statistics
+* 👨‍💼 Improved admin analytics
+* 🔗 More UIU service integrations
 
 ---
 
-# 🤖 Future Scholarship Model
+# 🤖 Possible Future Scholarship Improvements
 
-The current scholarship estimator is intentionally statistical rather than AI-based.
+The current scholarship estimator uses statistics and Monte Carlo simulation rather than Machine Learning.
 
-If a sufficiently large and reliable historical dataset becomes available, the system could eventually be improved with a Machine Learning model.
+If enough reliable historical data becomes available in the future, the estimator could potentially be improved with an ML model.
 
 Possible approaches could include:
 
-- Logistic Regression
-- Random Forest
-- Gradient Boosting
-- XGBoost
+* Logistic Regression
+* Random Forest
+* Gradient Boosting
+* XGBoost
 
-However, an ML model should only be introduced when there is enough reliable historical data to make its predictions meaningful.
+However, using Machine Learning would only make sense if there is enough reliable and representative data.
 
-For now, the statistical Monte Carlo approach is easier to understand and explain to students.
+For now, the statistical approach keeps the system easier to understand and more transparent.
 
 ---
 
 # ⚠️ Accuracy Notice
 
-This bot is an independent student project.
+UIU Smart Assistant is an independent student project.
 
-Information and calculations provided by the bot should not be treated as a replacement for official university information.
+The information and calculations provided by the bot should not replace official information from UIU.
 
-For important academic decisions, students should verify information directly with UIU.
+Students should verify important information directly with the university, especially for:
 
-This is especially important for:
+* Scholarship decisions
+* Course registration
+* Tuition fees
+* Academic regulations
+* Graduation requirements
+* Course prerequisites
+* Credit requirements
 
-- Scholarship decisions
-- Course registration
-- Tuition fees
-- Academic regulations
-- Graduation requirements
-- Course prerequisites
-- Credit requirements
-
-The bot intentionally labels estimated results as estimates rather than presenting them as official decisions.
+The bot intentionally presents estimated results as estimates instead of claiming that they are official decisions.
 
 ---
 
 # 🤝 Contributing
 
-Contributions and suggestions are welcome.
+Suggestions, improvements, and contributions are welcome.
 
-A basic workflow is:
+A basic contribution workflow is:
 
 ```bash
 git clone <repository-url>
@@ -1089,17 +1008,21 @@ git commit -m "Add your feature"
 git push origin feature/your-feature
 ```
 
-Then create a Pull Request.
+After that, open a Pull Request.
 
-Before submitting changes, make sure the relevant Python files compile successfully.
+Before pushing changes, it is recommended to test the affected Python files using `py_compile`.
 
 ---
 
 # 📜 License
 
-The project can be released under the license chosen by the developer.
+Choose the license you want to use for the project and add the corresponding `LICENSE` file to the repository.
 
-If using MIT License, include a `LICENSE` file containing the standard MIT License text.
+For example:
+
+```text
+MIT License
+```
 
 ---
 
@@ -1107,10 +1030,10 @@ If using MIT License, include a `LICENSE` file containing the standard MIT Licen
 
 **Sourav Saha**
 
-UIU Student
-Computer Science & Engineering
+Computer Science & Engineering Student
+United International University
 
-This project was developed as a student-focused tool to make everyday academic tasks and information easier to access through Telegram.
+This project was built with the goal of making commonly used academic tasks and information easier to access for UIU students through Telegram.
 
 ---
 
@@ -1118,16 +1041,16 @@ This project was developed as a student-focused tool to make everyday academic t
 
 This project uses:
 
-- 🐍 Python
-- 🤖 python-telegram-bot
-- ⚡ FastAPI
-- 🚀 Uvicorn
-- 🗄️ TiDB Cloud
-- 🌐 HTTPX
-- 📰 Feedparser
-- 🔎 BeautifulSoup4
-- ⏰ APScheduler
-- ☁️ Render
+* 🐍 Python
+* 🤖 python-telegram-bot
+* ⚡ FastAPI
+* 🚀 Uvicorn
+* 🗄️ TiDB Cloud
+* 🌐 HTTPX
+* 📰 Feedparser
+* 🔎 BeautifulSoup4
+* ⏰ APScheduler
+* ☁️ Render
 
 ---
 
@@ -1135,32 +1058,32 @@ This project uses:
 
 **Active Development**
 
-The project is still being improved and new features may be added over time.
+The project is still evolving, and new features, improvements, and fixes may be added over time.
 
-Current focus areas include:
+Current areas of development include:
 
-- Academic utilities
-- Scholarship estimation
-- Database reliability
-- User experience
-- Automation
-- Admin features
-- Production stability
+* Academic utilities
+* Scholarship estimation
+* Database reliability
+* User experience
+* Automation
+* Admin features
+* Production stability
 
 ---
 
 # 🎯 Final Note
 
-UIU Student Assistant is built around a simple idea:
+The main idea behind UIU Smart Assistant is simple:
 
 > **Make useful academic tools available to UIU students from one familiar place — Telegram.**
 
-From calculating CGPA and estimating academic fees to checking academic information and exploring scholarship possibilities, the goal is to reduce unnecessary steps and make everyday academic tasks a little easier.
+Whether a student wants to calculate CGPA, estimate trimester fees, check academic information, access registration links, or get an approximate idea about scholarship chances, the goal is to make the process faster and easier.
 
 ---
 
 <p align="center">
-  <strong>🎓 UIU Student Assistant</strong>
+  <strong>🎓 UIU Smart Assistant</strong>
   <br>
   Built for UIU students.
 </p>
