@@ -25,7 +25,6 @@ def get_calendar_button_name(title: str) -> str:
         title or "",
     ).strip()
 
-    # Remove [Revised] from button name
     clean_title = re.sub(
         r"\s*\[Revised\]\s*$",
         "",
@@ -35,7 +34,6 @@ def get_calendar_button_name(title: str) -> str:
 
     lower = clean_title.lower()
 
-    # Extract year
     year_match = re.search(
         r"\b20\d{2}\b",
         clean_title,
@@ -43,9 +41,6 @@ def get_calendar_button_name(title: str) -> str:
 
     year = year_match.group(0) if year_match else ""
 
-    # --------------------------------
-    # Pharmacy
-    # --------------------------------
     if "pharmacy" in lower:
 
         if "fall" in lower:
@@ -59,9 +54,6 @@ def get_calendar_button_name(title: str) -> str:
 
         return f"Pharmacy — {year}"
 
-    # --------------------------------
-    # Undergraduate
-    # --------------------------------
     if "undergraduate" in lower:
 
         if "summer" in lower:
@@ -75,9 +67,6 @@ def get_calendar_button_name(title: str) -> str:
 
         return f"{year} Undergraduate"
 
-    # --------------------------------
-    # Graduate
-    # --------------------------------
     if "graduate" in lower:
 
         if "summer" in lower:
@@ -91,9 +80,6 @@ def get_calendar_button_name(title: str) -> str:
 
         return f"{year} Graduate"
 
-    # --------------------------------
-    # Fallback
-    # --------------------------------
     return clean_title
 
 

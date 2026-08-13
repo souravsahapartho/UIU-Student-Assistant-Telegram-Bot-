@@ -183,8 +183,7 @@ async def scholarship_gpa(
         return SCHOLARSHIP_GPA
 
     await update.message.reply_text(
-        "<b>Step 2 of 4</b>\n\n"
-        "🎓 <b>Select your program:</b>",
+        "<b>Step 2 of 4</b>\n\n" "🎓 <b>Select your program:</b>",
         reply_markup=program_keyboard(),
         parse_mode="HTML",
     )
@@ -286,8 +285,7 @@ async def scholarship_credits(
 
     except ValueError:
         await update.message.reply_text(
-            "⚠️ Please enter a valid credit amount.\n\n"
-            "Example: <code>12</code>",
+            "⚠️ Please enter a valid credit amount.\n\n" "Example: <code>12</code>",
             reply_markup=cancel_keyboard(),
             parse_mode="HTML",
         )
@@ -400,8 +398,7 @@ async def scholarship_higher_count(
 
     except ValueError:
         await update.message.reply_text(
-            "⚠️ Please enter a valid whole number.\n\n"
-            "Example: <code>20</code>",
+            "⚠️ Please enter a valid whole number.\n\n" "Example: <code>20</code>",
             reply_markup=cancel_keyboard(),
             parse_mode="HTML",
         )
@@ -433,11 +430,7 @@ async def calculate_scholarship(
         "qualifying_credits",
     ]
 
-    missing = [
-        key
-        for key in required
-        if key not in data
-    ]
+    missing = [key for key in required if key not in data]
 
     if missing:
         logger.error(
@@ -459,9 +452,7 @@ async def calculate_scholarship(
             gpa=float(data["gpa"]),
             program=str(data["program"]),
             total_students=int(data["total_students"]),
-            qualifying_credits=float(
-                data["qualifying_credits"]
-            ),
+            qualifying_credits=float(data["qualifying_credits"]),
             higher_students=(
                 None
                 if data.get("higher_students") is None
@@ -470,9 +461,7 @@ async def calculate_scholarship(
         )
 
         if not isinstance(result, dict):
-            raise TypeError(
-                "Scholarship service returned invalid result."
-            )
+            raise TypeError("Scholarship service returned invalid result.")
 
         if not result.get("eligible", False):
             eligibility = result.get(
@@ -483,9 +472,7 @@ async def calculate_scholarship(
             )
 
             await update.message.reply_text(
-                generate_ineligible_text(
-                    eligibility
-                ),
+                generate_ineligible_text(eligibility),
                 reply_markup=cancel_keyboard(),
                 parse_mode="HTML",
             )
@@ -501,9 +488,7 @@ async def calculate_scholarship(
 
         context.user_data["scholarship_result"] = result
 
-        result_text = generate_result_text(
-            result
-        )
+        result_text = generate_result_text(result)
 
         await update.message.reply_text(
             result_text,
@@ -582,9 +567,7 @@ async def scholarship_callback(
         return
 
     if query.data == "scholarship_back":
-        result = context.user_data.get(
-            "scholarship_result"
-        )
+        result = context.user_data.get("scholarship_result")
 
         if result:
             await query.edit_message_text(
@@ -594,8 +577,7 @@ async def scholarship_callback(
             )
         else:
             await query.edit_message_text(
-                "🎓 <b>Scholarship Estimate</b>\n\n"
-                "Please start a new calculation.",
+                "🎓 <b>Scholarship Estimate</b>\n\n" "Please start a new calculation.",
                 parse_mode="HTML",
             )
 
