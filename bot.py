@@ -70,6 +70,7 @@ from handlers.general import (
 from handlers.cgpa import (
     cgpa_start,
     cgpa_new_calc,
+    cgpa_grading_callback,
     get_prev_credits,
     get_prev_cgpa,
     get_course_count,
@@ -290,46 +291,80 @@ def setup_handlers():
                 MessageHandler(
                     filters.Regex(r"^➕ New Calculation$"),
                     cgpa_new_calc,
-                )
+                ),
+                MessageHandler(
+                    filters.Regex(r"^📚 Grading System$"),
+                    cgpa_grading_callback,
+                ),
             ],
             CGPA_PREV_CREDITS: [
                 MessageHandler(
-                    filters.TEXT & ~filters.COMMAND & ~filters.Regex(r"^❌ Cancel$"),
+                    filters.Regex(r"^📚 Grading System$"),
+                    cgpa_grading_callback,
+                ),
+                MessageHandler(
+                    filters.TEXT
+                    & ~filters.COMMAND
+                    & ~filters.Regex(r"^(❌ Cancel|📚 Grading System)$"),
                     get_prev_credits,
-                )
+                ),
             ],
             CGPA_PREV_CGPA: [
                 MessageHandler(
-                    filters.TEXT & ~filters.COMMAND & ~filters.Regex(r"^❌ Cancel$"),
+                    filters.Regex(r"^📚 Grading System$"),
+                    cgpa_grading_callback,
+                ),
+                MessageHandler(
+                    filters.TEXT
+                    & ~filters.COMMAND
+                    & ~filters.Regex(r"^(❌ Cancel|📚 Grading System)$"),
                     get_prev_cgpa,
-                )
+                ),
             ],
             CGPA_COURSE_COUNT: [
                 MessageHandler(
-                    filters.TEXT & ~filters.COMMAND & ~filters.Regex(r"^❌ Cancel$"),
+                    filters.Regex(r"^📚 Grading System$"),
+                    cgpa_grading_callback,
+                ),
+                MessageHandler(
+                    filters.TEXT
+                    & ~filters.COMMAND
+                    & ~filters.Regex(r"^(❌ Cancel|📚 Grading System)$"),
                     get_course_count,
-                )
+                ),
             ],
             CGPA_COURSE_CREDIT: [
                 MessageHandler(
-                    filters.TEXT & ~filters.COMMAND & ~filters.Regex(r"^❌ Cancel$"),
+                    filters.Regex(r"^📚 Grading System$"),
+                    cgpa_grading_callback,
+                ),
+                MessageHandler(
+                    filters.TEXT
+                    & ~filters.COMMAND
+                    & ~filters.Regex(r"^(❌ Cancel|📚 Grading System)$"),
                     get_course_credit,
-                )
+                ),
             ],
             CGPA_COURSE_GRADE: [
                 MessageHandler(
-                    filters.TEXT & ~filters.COMMAND & ~filters.Regex(r"^❌ Cancel$"),
+                    filters.Regex(r"^📚 Grading System$"),
+                    cgpa_grading_callback,
+                ),
+                MessageHandler(
+                    filters.TEXT
+                    & ~filters.COMMAND
+                    & ~filters.Regex(r"^(❌ Cancel|📚 Grading System)$"),
                     get_course_grade,
-                )
+                ),
             ],
         },
         fallbacks=[
-            CommandHandler(
-                "cancel",
-                cgpa_cancel,
-            ),
             MessageHandler(
                 filters.Regex(r"^❌ Cancel$"),
+                cgpa_cancel,
+            ),
+            CommandHandler(
+                "cancel",
                 cgpa_cancel,
             ),
         ],
@@ -683,6 +718,7 @@ async def lifespan(
 
     try:
         yield
+
     finally:
         try:
             await telegram_app.stop()
