@@ -1,4 +1,9 @@
-from telegram import Update
+from telegram import (
+    Update,
+    InlineKeyboardButton,
+    InlineKeyboardMarkup,
+)
+
 from telegram.ext import (
     ContextTypes,
     ConversationHandler,
@@ -32,7 +37,6 @@ GRADE_POINTS = {
     "F": 0.00,
 }
 
-
 NON_GPA_GRADES = [
     "I",
     "W",
@@ -40,10 +44,58 @@ NON_GPA_GRADES = [
 ]
 
 
+def get_cgpa_input_keyboard():
+    """
+    Keyboard shown during CGPA calculation.
+
+    Grading System is placed directly above Cancel.
+    """
+
+    return InlineKeyboardMarkup(
+        [
+            [
+                InlineKeyboardButton(
+                    "📚 Grading System",
+                    callback_data="cgpa_grading",
+                )
+            ],
+            [
+                InlineKeyboardButton(
+                    "❌ Cancel",
+                    callback_data="cgpa_cancel_button",
+                )
+            ],
+        ]
+    )
+
+
+def grading_system_text():
+
+    return (
+        "📚 <b>UIU Grading System</b>\n\n"
+        "<pre>"
+        "Letter   Grade   Marks     Assessment\n"
+        "────────────────────────────────────\n"
+        "A        4.00    90–100    Outstanding\n"
+        "A-       3.67    86–89     Excellent\n"
+        "B+       3.33    82–85     Very Good\n"
+        "B        3.00    78–81     Good\n"
+        "B-       2.67    74–77     Above Average\n"
+        "C+       2.33    70–73     Average\n"
+        "C        2.00    66–69     Below Average\n"
+        "C-       1.67    62–65     Poor\n"
+        "D+       1.33    58–61     Very Poor\n"
+        "D        1.00    55–57     Pass\n"
+        "F        0.00    0–54      Fail\n"
+        "</pre>"
+    )
+
+
 async def cgpa_start(
     update: Update,
     context: ContextTypes.DEFAULT_TYPE,
 ):
+
     context.user_data["cgpa_data"] = {}
 
     await update.message.reply_text(
@@ -51,7 +103,7 @@ async def cgpa_start(
         "Step 1: Enter your previously completed credits.\n\n"
         "Example: <code>45</code>\n\n"
         "If you are in your first semester, enter <code>0</code>.",
-        reply_markup=get_cancel_keyboard(),
+        reply_markup=get_cgpa_input_keyboard(),
         parse_mode="HTML",
     )
 
@@ -62,9 +114,11 @@ async def get_prev_credits(
     update: Update,
     context: ContextTypes.DEFAULT_TYPE,
 ):
+
     text = update.message.text.strip()
 
     try:
+
         credits = float(text)
 
         if credits < 0:
@@ -73,74 +127,91 @@ async def get_prev_credits(
         context.user_data["cgpa_data"]["prev_credits"] = credits
 
         if credits == 0:
+
             context.user_data["cgpa_data"]["prev_cgpa"] = 0.0
 
             await update.message.reply_text(
                 "Step 2: How many courses are you " "taking this semester?",
-                reply_markup=get_cancel_keyboard(),
+                reply_markup=get_cgpa_input_keyboard(),
             )
 
             return CGPA_COURSE_COUNT
 
         await update.message.reply_text(
             "Step 2: Enter your current CGPA.\n\n" "Example: <code>3.42</code>",
-            reply_markup=get_cancel_keyboard(),
+            reply_markup=get_cgpa_input_keyboard(),
             parse_mode="HTML",
         )
 
         return CGPA_PREV_CGPA
 
     except ValueError:
+
         await update.message.reply_text(
             "⚠️ Invalid input.\n\n"
             "Please enter a valid non-negative number "
             "for completed credits.",
-            reply_markup=get_cancel_keyboard(),
+            reply_markup=get_cgpa_input_keyboard(),
         )
 
         return CGPA_PREV_CREDITS
+
+
+# ============================================================
+# PREVIOUS CGPA
+# ============================================================
 
 
 async def get_prev_cgpa(
     update: Update,
     context: ContextTypes.DEFAULT_TYPE,
 ):
+
     text = update.message.text.strip()
 
     try:
+
         cgpa = float(text)
 
-        if not (0 <= cgpa <= 4.0):
+        if not 0 <= cgpa <= 4.0:
             raise ValueError
 
         context.user_data["cgpa_data"]["prev_cgpa"] = cgpa
 
         await update.message.reply_text(
             "Step 3: How many courses are you " "taking this semester?",
-            reply_markup=get_cancel_keyboard(),
+            reply_markup=get_cgpa_input_keyboard(),
         )
 
         return CGPA_COURSE_COUNT
 
     except ValueError:
+
         await update.message.reply_text(
             "⚠️ Invalid CGPA.\n\n" "Please enter a number between " "0.00 and 4.00.",
-            reply_markup=get_cancel_keyboard(),
+            reply_markup=get_cgpa_input_keyboard(),
         )
 
         return CGPA_PREV_CGPA
+
+
+# ============================================================
+# COURSE COUNT
+# ============================================================
 
 
 async def get_course_count(
     update: Update,
     context: ContextTypes.DEFAULT_TYPE,
 ):
+
     text = update.message.text.strip()
 
     try:
+
         count = int(text)
 
-        if not (1 <= count <= 30):
+        if not 1 <= count <= 30:
             raise ValueError
 
         context.user_data["cgpa_data"]["course_count"] = count
@@ -151,30 +222,38 @@ async def get_course_count(
 
         await update.message.reply_text(
             "Course 1:\n" "Enter credit for Course 1.\n\n" "Example: <code>3</code>",
-            reply_markup=get_cancel_keyboard(),
+            reply_markup=get_cgpa_input_keyboard(),
             parse_mode="HTML",
         )
 
         return CGPA_COURSE_CREDIT
 
     except ValueError:
+
         await update.message.reply_text(
             "⚠️ Invalid input.\n\n"
             "Please enter the number of courses "
             "between 1 and 30.",
-            reply_markup=get_cancel_keyboard(),
+            reply_markup=get_cgpa_input_keyboard(),
         )
 
         return CGPA_COURSE_COUNT
+
+
+# ============================================================
+# COURSE CREDIT
+# ============================================================
 
 
 async def get_course_credit(
     update: Update,
     context: ContextTypes.DEFAULT_TYPE,
 ):
+
     text = update.message.text.strip()
 
     try:
+
         credit = float(text)
 
         if credit <= 0:
@@ -185,30 +264,38 @@ async def get_course_credit(
         course_number = context.user_data["cgpa_data"]["current_course"]
 
         await update.message.reply_text(
-            f"Select grade for Course " f"{course_number}:",
+            f"Select grade for Course {course_number}:",
             reply_markup=get_grade_keyboard(),
         )
 
         return CGPA_COURSE_GRADE
 
     except ValueError:
+
         await update.message.reply_text(
             "⚠️ Invalid credit.\n\n" "Please enter a positive number.",
-            reply_markup=get_cancel_keyboard(),
+            reply_markup=get_cgpa_input_keyboard(),
         )
 
         return CGPA_COURSE_CREDIT
+
+
+# ============================================================
+# COURSE GRADE
+# ============================================================
 
 
 async def get_course_grade(
     update: Update,
     context: ContextTypes.DEFAULT_TYPE,
 ):
+
     grade = update.message.text.strip()
 
     if grade not in GRADE_POINTS and grade not in NON_GPA_GRADES:
+
         await update.message.reply_text(
-            "⚠️ Invalid grade.\n\n" "Please select a grade from the keyboard.",
+            "⚠️ Invalid grade.\n\n" "Please select a valid grade.",
             reply_markup=get_grade_keyboard(),
         )
 
@@ -228,6 +315,7 @@ async def get_course_grade(
     total = context.user_data["cgpa_data"]["course_count"]
 
     if current < total:
+
         next_course = current + 1
 
         context.user_data["cgpa_data"]["current_course"] = next_course
@@ -236,7 +324,7 @@ async def get_course_grade(
             f"Course {next_course}:\n"
             f"Enter credit for Course {next_course}.\n\n"
             "Example: <code>3</code>",
-            reply_markup=get_cancel_keyboard(),
+            reply_markup=get_cgpa_input_keyboard(),
             parse_mode="HTML",
         )
 
@@ -248,10 +336,16 @@ async def get_course_grade(
     )
 
 
+# ============================================================
+# FINAL CALCULATION
+# ============================================================
+
+
 async def calculate_final_cgpa(
     update: Update,
     context: ContextTypes.DEFAULT_TYPE,
 ):
+
     data = context.user_data.get(
         "cgpa_data",
         {},
@@ -277,12 +371,14 @@ async def calculate_final_cgpa(
     total_semester_credits = 0.0
 
     for course in courses:
+
         credit = course["credit"]
         grade = course["grade"]
 
         total_semester_credits += credit
 
         if grade not in NON_GPA_GRADES:
+
             semester_gpa_credits += credit
 
             semester_quality_points += credit * GRADE_POINTS[grade]
@@ -305,10 +401,8 @@ async def calculate_final_cgpa(
 
     report = (
         "🎓 <b>CGPA REPORT</b>\n\n"
-        f"Previous Credits: "
-        f"{prev_credits:.2f}\n"
-        f"Previous CGPA: "
-        f"{prev_cgpa:.2f}\n"
+        f"Previous Credits: {prev_credits:.2f}\n"
+        f"Previous CGPA: {prev_cgpa:.2f}\n"
         "━━━━━━━━━━━━━━━━━━\n"
         f"Semester Credits: "
         f"{total_semester_credits:.2f}\n"
@@ -339,10 +433,16 @@ async def calculate_final_cgpa(
     return ConversationHandler.END
 
 
+# ============================================================
+# CANCEL
+# ============================================================
+
+
 async def cgpa_cancel(
     update: Update,
     context: ContextTypes.DEFAULT_TYPE,
 ):
+
     context.user_data.pop(
         "cgpa_data",
         None,
@@ -354,3 +454,23 @@ async def cgpa_cancel(
     )
 
     return ConversationHandler.END
+
+
+# ============================================================
+# GRADING SYSTEM BUTTON
+# ============================================================
+
+
+async def cgpa_grading_callback(
+    update: Update,
+    context: ContextTypes.DEFAULT_TYPE,
+):
+
+    query = update.callback_query
+
+    await query.answer()
+
+    await query.message.reply_text(
+        grading_system_text(),
+        parse_mode="HTML",
+    )
