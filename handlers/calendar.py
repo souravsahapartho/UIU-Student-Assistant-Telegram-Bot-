@@ -22,7 +22,10 @@ async def academic_calendar(
         calendars = await get_latest_calendars(5)
 
         if not calendars:
-            await update.message.reply_text("⚠️ No academic calendars found right now.")
+            await update.message.reply_text(
+                "⚠️ Academic calendars are temporarily unavailable.\n\n"
+                "Please try again later."
+            )
             return
 
         text = "📅 <b>Academic Calendar</b>\n\n"
@@ -31,24 +34,35 @@ async def academic_calendar(
 
         for index, calendar in enumerate(
             calendars,
-            start=1,
+            1,
         ):
-            title = calendar["title"]
-            year = calendar["year"]
-            url = calendar["url"]
+            title = calendar.get(
+                "title",
+                "Academic Calendar",
+            )
+
+            year = calendar.get(
+                "year",
+                "",
+            )
+
+            url = calendar.get(
+                "url",
+                "",
+            )
 
             text += f"<b>{index}. {title}</b>\n" f"📅 {year}\n\n"
 
             buttons.append(
                 [
                     InlineKeyboardButton(
-                        f"📄 {index}. View Calendar ↗",
+                        f"📄 {index}. {title} ↗",
                         url=url,
                     )
                 ]
             )
 
-        text += "🔗 Each button opens the " "original UIU calendar page."
+        text += "🔗 Tap a calendar to open " "the original UIU page."
 
         await update.message.reply_text(
             text,
@@ -57,12 +71,13 @@ async def academic_calendar(
             disable_web_page_preview=True,
         )
 
-    except Exception as e:
+    except Exception as error:
         print(
             "Academic calendar error:",
-            e,
+            error,
         )
 
         await update.message.reply_text(
-            "⚠️ Unable to load academic calendars right now."
+            "⚠️ Unable to load academic calendars right now.\n\n"
+            "Please try again later."
         )
