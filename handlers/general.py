@@ -37,17 +37,17 @@ async def start(
     )
 
     welcome_msg = (
-        f"👋 Welcome to **UIU Smart Assistant**, "
-        f"{user.first_name}!\n\n"
+        f"👋 Welcome to **UIU Smart Assistant**, {user.first_name}!\n\n"
         "Your personal assistant for:\n"
         "🎓 CGPA calculation\n"
         "💰 Tuition fee calculation\n"
+        "🎁 Scholarship calculation\n"
         "📚 Academic resources\n"
         "🔗 Important UIU links\n"
-        "📢 Real-time Notices and calendar\n\n"
+        "📅 Academic calendar\n"
+        "📢 Latest notices\n\n"
         "👨‍💻 _Made with ❤️ by @souravsahapartho_\n\n"
-        "👇 Select an option from the menu below "
-        "to get started."
+        "👇 Select an option from the menu below."
     )
 
     await update.message.reply_text(
@@ -57,30 +57,41 @@ async def start(
     )
 
 
-async def show_help(
+async def help_command(
     update: Update,
     context: ContextTypes.DEFAULT_TYPE,
 ):
     help_text = (
         "❓ **Help Center**\n\n"
-        "🎓 **CGPA Calculator:** "
-        "Accurately calculate semester & overall CGPA.\n\n"
-        "💰 **Fee Calculator:** "
-        "Estimate tuition fees including waivers & retakes.\n\n"
-        "🎁 **Scholarship Calculator:** "
+        "🎓 **CGPA Calculator**\n"
+        "Calculate semester GPA and updated overall CGPA.\n\n"
+        "💰 **Fee Calculator**\n"
+        "Estimate tuition fees, retake fees, scholarships, "
+        "waivers and installments.\n\n"
+        "🎁 **Scholarship Calculator**\n"
         "Check scholarship-related calculations.\n\n"
-        "📚 **Academic Information:** "
+        "📚 **Academic Information**\n"
         "Access important academic information.\n\n"
-        "📢 **Notices:** "
+        "📢 **Notices**\n"
         "Get the latest UIU notices.\n\n"
-        "⚙️ **Settings:** "
-        "Manage notification preferences.\n\n"
-        "If you face issues, use /start to restart the bot."
+        "🔗 **Important Links**\n"
+        "Quick access to official UIU resources.\n\n"
+        "If you face any issue, use /start to restart the bot."
     )
 
     await update.message.reply_text(
         help_text,
         parse_mode="Markdown",
+    )
+
+
+async def show_help(
+    update: Update,
+    context: ContextTypes.DEFAULT_TYPE,
+):
+    await help_command(
+        update,
+        context,
     )
 
 
@@ -94,9 +105,9 @@ async def about(
         "United International University.\n\n"
         "Version 2.0.0\n\n"
         "👨‍💻 **Developer:** @souravsahapartho\n\n"
-        "*Disclaimer:* Fee and academic policy "
-        "information may change. Please verify "
-        "important decisions with official UIU sources."
+        "*Disclaimer:* Fee and academic policy information "
+        "may change. Please verify important decisions with "
+        "official UIU sources."
     )
 
     await update.message.reply_text(
@@ -146,7 +157,7 @@ async def academic_info(
         [
             InlineKeyboardButton(
                 "🎓 Admission",
-                callback_data="acad_admission",
+                url="https://www.uiu.ac.bd/admission/",
             ),
             InlineKeyboardButton(
                 "📝 Registration",
@@ -166,7 +177,7 @@ async def academic_info(
         [
             InlineKeyboardButton(
                 "🎯 Graduation",
-                callback_data="acad_graduation",
+                url="https://convocation.uiu.ac.bd/",
             ),
             InlineKeyboardButton(
                 "📚 Grading System",
@@ -228,7 +239,7 @@ async def academic_info_callback(
             [
                 InlineKeyboardButton(
                     "🎓 Admission",
-                    callback_data="acad_admission",
+                    url="https://www.uiu.ac.bd/admission/",
                 ),
                 InlineKeyboardButton(
                     "📝 Registration",
@@ -248,7 +259,7 @@ async def academic_info_callback(
             [
                 InlineKeyboardButton(
                     "🎯 Graduation",
-                    callback_data="acad_graduation",
+                    url="https://convocation.uiu.ac.bd/",
                 ),
                 InlineKeyboardButton(
                     "📚 Grading System",
@@ -288,12 +299,6 @@ async def academic_info_callback(
         return
 
     information = {
-        "acad_admission": (
-            "🎓 **Admission**\n\n"
-            "For current admission requirements "
-            "and procedures, please check the "
-            "official UIU website."
-        ),
         "acad_registration": (
             "📝 **Registration**\n\n"
             "Course registration information and "
@@ -303,19 +308,14 @@ async def academic_info_callback(
         "acad_credit": (
             "📊 **Credit System**\n\n"
             "Credit requirements depend on the "
-            "academic program. Check your "
-            "department's official curriculum."
+            "academic program. Check your department's "
+            "official curriculum."
         ),
         "acad_retake": (
             "🔄 **Retake Rules**\n\n"
-            "Retake and improvement policies may "
-            "change. Please verify the current "
-            "policy through official UIU sources."
-        ),
-        "acad_graduation": (
-            "🎯 **Graduation Requirements**\n\n"
-            "Graduation requirements depend on "
-            "your program and academic regulations."
+            "Retake and improvement policies may change. "
+            "Please verify the current policy through "
+            "official UIU sources."
         ),
     }
 
@@ -397,7 +397,6 @@ async def notices(
             parse_mode="Markdown",
             disable_web_page_preview=True,
         )
-
     else:
         await update.message.reply_text(
             "📢 No notices available right now. " "Please check back later."
@@ -481,7 +480,7 @@ async def handle_cancel(
     context: ContextTypes.DEFAULT_TYPE,
 ):
     await update.message.reply_text(
-        "❌ Cancelled.\n\n" "Use /start to return to the main menu.",
+        "❌ Cancelled.",
         reply_markup=get_main_menu(),
     )
 
