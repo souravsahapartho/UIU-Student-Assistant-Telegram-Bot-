@@ -58,6 +58,14 @@ def init_db():
         )
         """)
 
+    cursor.execute("""
+        CREATE TABLE IF NOT EXISTS notification_settings (
+            telegram_id INTEGER PRIMARY KEY,
+            enabled INTEGER DEFAULT 1,
+            updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
+        )
+        """)
+
     conn.commit()
     conn.close()
 
@@ -90,25 +98,20 @@ def log_user_activity(
         ),
     )
 
+    cursor.execute(
+        """
+        INSERT INTO notification_settings (
+            telegram_id,
+            enabled
+        )
+        VALUES (?, 1)
+        ON CONFLICT(telegram_id) DO NOTHING
+        """,
+        (telegram_id,),
+    )
+
     conn.commit()
     conn.close()
-
-
-def get_all_users():
-    conn = get_connection()
-    cursor = conn.cursor()
-
-    cursor.execute("""
-        SELECT telegram_id
-        FROM users
-        WHERE telegram_id IS NOT NULL
-        ORDER BY id ASC
-        """)
-
-    rows = cursor.fetchall()
-    conn.close()
-
-    return [row["telegram_id"] for row in rows]
 
 
 def get_user(
@@ -130,6 +133,23 @@ def get_user(
     conn.close()
 
     return row
+
+
+def get_all_users():
+    conn = get_connection()
+    cursor = conn.cursor()
+
+    cursor.execute("""
+        SELECT telegram_id
+        FROM users
+        WHERE telegram_id IS NOT NULL
+        ORDER BY id ASC
+        """)
+
+    rows = cursor.fetchall()
+    conn.close()
+
+    return [row["telegram_id"] for row in rows]
 
 
 def get_user_count():
@@ -336,6 +356,93 @@ def delete_notice(
     conn.close()
 
     return deleted
+
+
+def get_notification_status(
+    telegram_id: int,
+):
+    conn = get_connection()
+    cursor = conn.cursor()
+
+    cursor.execute(
+        """
+        SELECT enabled
+        FROM notification_settings
+        WHERE telegram_id = ?
+        """,
+        (telegram_id,),
+    )
+
+    row = cursor.fetchone()
+
+    if row is None:
+        cursor.execute(
+            """
+            INSERT INTO notification_settings (
+                telegram_id,
+                enabled
+            )
+            VALUES (?, 1)
+            """,
+            (telegram_id,),
+        )
+
+        conn.commit()
+        conn.close()
+
+        return True
+
+    conn.close()
+
+    return bool(row["enabled"])
+
+
+def set_notification_status(
+    telegram_id: int,
+    enabled: bool,
+):
+    conn = get_connection()
+    cursor = conn.cursor()
+
+    cursor.execute(
+        """
+        INSERT INTO notification_settings (
+            telegram_id,
+            enabled
+        )
+        VALUES (?, ?)
+        ON CONFLICT(telegram_id) DO UPDATE SET
+            enabled = excluded.enabled,
+            updated_at = CURRENT_TIMESTAMP
+        """,
+        (
+            telegram_id,
+            1 if enabled else 0,
+        ),
+    )
+
+    conn.commit()
+    conn.close()
+
+
+def get_notification_users():
+    conn = get_connection()
+    cursor = conn.cursor()
+
+    cursor.execute("""
+        SELECT u.telegram_id
+        FROM users u
+        LEFT JOIN notification_settings n
+            ON u.telegram_id = n.telegram_id
+        WHERE COALESCE(n.enabled, 1) = 1
+        AND u.telegram_id IS NOT NULL
+        ORDER BY u.id ASC
+        """)
+
+    rows = cursor.fetchall()
+    conn.close()
+
+    return [row["telegram_id"] for row in rows]
 
 
 def get_calendar_by_url(

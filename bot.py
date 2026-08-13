@@ -3,7 +3,13 @@ import os
 from contextlib import asynccontextmanager
 
 from fastapi import FastAPI, Request, HTTPException
-from telegram import Update, InlineKeyboardButton, InlineKeyboardMarkup
+
+from telegram import (
+    Update,
+    InlineKeyboardButton,
+    InlineKeyboardMarkup,
+)
+
 from telegram.ext import (
     Application,
     CommandHandler,
@@ -14,9 +20,10 @@ from telegram.ext import (
 )
 
 from config import Config
+
 from database import (
     init_db,
-    get_all_users,
+    get_notification_users,
 )
 
 from states import (
@@ -72,6 +79,7 @@ from handlers.fee import (
 )
 
 from handlers.calendar import academic_calendar
+
 from handlers.admin import admin_panel
 
 from services.calendar_service import sync_calendars
@@ -84,7 +92,11 @@ logging.basicConfig(
 logger = logging.getLogger(__name__)
 
 WEBHOOK_PATH = "/telegram/webhook"
-WEBHOOK_SECRET = os.getenv("WEBHOOK_SECRET", "")
+
+WEBHOOK_SECRET = os.getenv(
+    "WEBHOOK_SECRET",
+    "",
+)
 
 telegram_app = Application.builder().token(Config.BOT_TOKEN).build()
 
@@ -95,13 +107,23 @@ async def calendar_update_job(
     try:
         result = await sync_calendars()
 
-        new_items = result.get("new", [])
-        updated_items = result.get("updated", [])
+        new_items = result.get(
+            "new",
+            [],
+        )
+
+        updated_items = result.get(
+            "updated",
+            [],
+        )
 
         if not new_items and not updated_items:
             return
 
-        users = get_all_users()
+        users = get_notification_users()
+
+        if not users:
+            return
 
         for calendar in new_items:
 
@@ -120,18 +142,22 @@ async def calendar_update_job(
                 ]
             ]
 
+            markup = InlineKeyboardMarkup(keyboard)
+
             for telegram_id in users:
 
                 try:
+
                     await context.bot.send_message(
                         chat_id=telegram_id,
                         text=text,
-                        reply_markup=InlineKeyboardMarkup(keyboard),
+                        reply_markup=markup,
                     )
 
                 except Exception as error:
+
                     logger.warning(
-                        "Failed to notify user %s: %s",
+                        "Calendar notification failed for %s: %s",
                         telegram_id,
                         error,
                     )
@@ -153,23 +179,28 @@ async def calendar_update_job(
                 ]
             ]
 
+            markup = InlineKeyboardMarkup(keyboard)
+
             for telegram_id in users:
 
                 try:
+
                     await context.bot.send_message(
                         chat_id=telegram_id,
                         text=text,
-                        reply_markup=InlineKeyboardMarkup(keyboard),
+                        reply_markup=markup,
                     )
 
                 except Exception as error:
+
                     logger.warning(
-                        "Failed to notify user %s: %s",
+                        "Calendar update notification failed for %s: %s",
                         telegram_id,
                         error,
                     )
 
     except Exception as error:
+
         logger.error(
             "Academic calendar sync failed: %s",
             error,
@@ -388,17 +419,28 @@ async def error_handler(
         exc_info=context.error,
     )
 
-    if isinstance(update, Update) and update.message:
+    if (
+        isinstance(
+            update,
+            Update,
+        )
+        and update.message
+    ):
+
         try:
+
             await update.message.reply_text(
-                "⚠️ Something went wrong. Please try again or type /start."
+                "⚠️ Something went wrong. " "Please try again or type /start."
             )
+
         except Exception:
             pass
 
 
 @asynccontextmanager
-async def lifespan(app: FastAPI):
+async def lifespan(
+    app: FastAPI,
+):
 
     Config.validate()
 
@@ -413,20 +455,24 @@ async def lifespan(app: FastAPI):
     await telegram_app.start()
 
     if telegram_app.job_queue:
+
         telegram_app.job_queue.run_repeating(
             calendar_update_job,
             interval=1800,
             first=60,
             name="academic-calendar-check",
         )
+
+        logger.info("Academic calendar checker started.")
+
     else:
-        logger.error(
-            "JobQueue is not available. " "Install python-telegram-bot[job-queue]."
-        )
+
+        logger.error("JobQueue is unavailable.")
 
     render_url = os.getenv("RENDER_EXTERNAL_URL")
 
     if not render_url:
+
         raise RuntimeError("RENDER_EXTERNAL_URL is not available.")
 
     webhook_url = render_url.rstrip("/") + WEBHOOK_PATH
@@ -437,6 +483,7 @@ async def lifespan(app: FastAPI):
     }
 
     if WEBHOOK_SECRET:
+
         webhook_args["secret_token"] = WEBHOOK_SECRET
 
     await telegram_app.bot.set_webhook(**webhook_args)
@@ -446,24 +493,28 @@ async def lifespan(app: FastAPI):
         webhook_url,
     )
 
-    logger.info("Academic Calendar checker started.")
-
     logger.info("UIU Smart Assistant is running...")
 
     yield
 
     try:
+
         await telegram_app.bot.delete_webhook()
+
     except Exception:
         pass
 
     try:
+
         await telegram_app.stop()
+
     except Exception:
         pass
 
     try:
+
         await telegram_app.shutdown()
+
     except Exception:
         pass
 
@@ -473,6 +524,7 @@ app = FastAPI(lifespan=lifespan)
 
 @app.get("/")
 async def root():
+
     return {
         "status": "online",
         "service": "UIU Smart Assistant",
@@ -481,6 +533,7 @@ async def root():
 
 @app.get("/health")
 async def health():
+
     return {
         "status": "ok",
         "telegram": "webhook",
@@ -498,12 +551,14 @@ async def telegram_webhook(
         received_secret = request.headers.get("X-Telegram-Bot-Api-Secret-Token")
 
         if received_secret != WEBHOOK_SECRET:
+
             raise HTTPException(
                 status_code=403,
                 detail="Invalid webhook secret",
             )
 
     try:
+
         data = await request.json()
 
         update = Update.de_json(
@@ -530,6 +585,7 @@ async def telegram_webhook(
 
 
 if __name__ == "__main__":
+
     import uvicorn
 
     port = int(
