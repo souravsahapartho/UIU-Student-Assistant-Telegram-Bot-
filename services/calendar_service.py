@@ -8,6 +8,7 @@ from bs4 import BeautifulSoup
 from database import (
     get_calendar_by_url,
     save_calendar,
+    get_calendars,
 )
 
 CALENDAR_URL = "https://www.uiu.ac.bd/academics/calendar/"
@@ -46,7 +47,6 @@ async def fetch_calendar_page():
         timeout=timeout,
         follow_redirects=True,
     ) as client:
-
         response = await client.get(CALENDAR_URL)
 
         response.raise_for_status()
@@ -61,6 +61,7 @@ def parse_calendars(html):
     )
 
     results = []
+    candidates = []
 
     for heading in soup.find_all(
         [
@@ -89,25 +90,26 @@ def parse_calendars(html):
 
         parent = heading.parent
 
-        if not parent:
-            continue
+        if parent:
+            candidates.append(
+                (
+                    heading,
+                    title,
+                    parent,
+                )
+            )
 
+    for heading, title, parent in candidates:
         links = parent.find_all(
             "a",
             href=True,
         )
 
-        if not links:
-            next_parent = parent.parent
-
-            if next_parent:
-                links = next_parent.find_all(
-                    "a",
-                    href=True,
-                )
-
-        if not links:
-            continue
+        if not links and parent.parent:
+            links = parent.parent.find_all(
+                "a",
+                href=True,
+            )
 
         page_url = None
         pdf_url = None
@@ -171,9 +173,33 @@ def parse_calendars(html):
 async def fetch_calendars():
     html = await fetch_calendar_page()
 
-    calendars = parse_calendars(html)
+    return parse_calendars(html)
 
-    return calendars
+
+async def get_latest_calendars(
+    limit=5,
+):
+    calendars = await fetch_calendars()
+
+    if calendars:
+        return calendars[:limit]
+
+    rows = get_calendars(limit=limit)
+
+    result = []
+
+    for row in rows:
+        result.append(
+            {
+                "id": row["id"],
+                "title": row["title"],
+                "url": row["url"],
+                "content": row["content"] or "",
+                "content_hash": row["content_hash"] or "",
+            }
+        )
+
+    return result
 
 
 async def sync_calendars():
@@ -183,9 +209,7 @@ async def sync_calendars():
     updated_items = []
 
     for calendar in calendars:
-        url = calendar["url"]
-
-        existing = get_calendar_by_url(url)
+        existing = get_calendar_by_url(calendar["url"])
 
         if existing is None:
             save_calendar(
@@ -197,11 +221,7 @@ async def sync_calendars():
 
             new_items.append(calendar)
 
-            continue
-
-        old_hash = existing["content_hash"]
-
-        if old_hash != calendar["content_hash"]:
+        elif existing["content_hash"] != calendar["content_hash"]:
             save_calendar(
                 calendar["title"],
                 calendar["url"],
