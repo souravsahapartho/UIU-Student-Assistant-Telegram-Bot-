@@ -45,8 +45,6 @@ from states import (
     FEE_RETAKE_CREDITS,
     FEE_DISCOUNT_TYPE,
     FEE_DISCOUNT_PERCENT,
-    ADMIN_BROADCAST,
-    ADMIN_BROADCAST_MESSAGE,
 )
 
 from handlers.general import (
@@ -88,12 +86,9 @@ from handlers.fee import (
 )
 
 from handlers.calendar import academic_calendar
-
 from handlers.admin import admin_panel
 
-from services.calendar_service import (
-    sync_calendars,
-)
+from services.calendar_service import sync_calendars
 
 logging.basicConfig(
     format="%(asctime)s - %(name)s - %(levelname)s - %(message)s",
@@ -112,26 +107,130 @@ WEBHOOK_SECRET = os.getenv(
 telegram_app = Application.builder().token(Config.BOT_TOKEN).build()
 
 
+async def send_calendar_notifications(
+    context: ContextTypes.DEFAULT_TYPE,
+    new_items,
+    updated_items,
+):
+
+    users = get_notification_users()
+
+    if not users:
+        return
+
+    for calendar in new_items:
+
+        title = calendar.get(
+            "title",
+            "Academic Calendar",
+        )
+
+        url = calendar.get(
+            "url",
+            "",
+        )
+
+        text = (
+            "🔔 New Academic Calendar\n\n"
+            f"📅 {title}\n\n"
+            "UIU has published a new academic calendar."
+        )
+
+        keyboard = []
+
+        if url:
+            keyboard.append(
+                [
+                    InlineKeyboardButton(
+                        "📄 View Calendar",
+                        url=url,
+                    )
+                ]
+            )
+
+        markup = InlineKeyboardMarkup(keyboard) if keyboard else None
+
+        for telegram_id in users:
+
+            try:
+
+                await context.bot.send_message(
+                    chat_id=telegram_id,
+                    text=text,
+                    reply_markup=markup,
+                )
+
+            except Exception as error:
+
+                logger.warning(
+                    "New calendar notification failed for %s: %s",
+                    telegram_id,
+                    error,
+                )
+
+    for calendar in updated_items:
+
+        title = calendar.get(
+            "title",
+            "Academic Calendar",
+        )
+
+        url = calendar.get(
+            "url",
+            "",
+        )
+
+        text = (
+            "🔄 Academic Calendar Updated\n\n"
+            f"📅 {title}\n\n"
+            "UIU has updated this academic calendar."
+        )
+
+        keyboard = []
+
+        if url:
+            keyboard.append(
+                [
+                    InlineKeyboardButton(
+                        "📄 View Updated Calendar",
+                        url=url,
+                    )
+                ]
+            )
+
+        markup = InlineKeyboardMarkup(keyboard) if keyboard else None
+
+        for telegram_id in users:
+
+            try:
+
+                await context.bot.send_message(
+                    chat_id=telegram_id,
+                    text=text,
+                    reply_markup=markup,
+                )
+
+            except Exception as error:
+
+                logger.warning(
+                    "Updated calendar notification failed for %s: %s",
+                    telegram_id,
+                    error,
+                )
+
+
 async def calendar_update_job(
     context: ContextTypes.DEFAULT_TYPE,
 ):
+
     try:
+
         initialized = get_setting(
             "CALENDAR_INITIALIZED",
             0,
         )
 
         result = await sync_calendars()
-
-        if not initialized:
-            update_setting(
-                "CALENDAR_INITIALIZED",
-                1,
-            )
-
-            logger.info("Academic calendar initialized without notifications.")
-
-            return
 
         new_items = result.get(
             "new",
@@ -143,83 +242,25 @@ async def calendar_update_job(
             [],
         )
 
+        if not initialized:
+
+            update_setting(
+                "CALENDAR_INITIALIZED",
+                1,
+            )
+
+            logger.info("Academic calendar initialized without notification.")
+
+            return
+
         if not new_items and not updated_items:
             return
 
-        users = get_notification_users()
-
-        if not users:
-            return
-
-        for calendar in new_items:
-
-            text = (
-                "🔔 New Academic Calendar\n\n"
-                f"📅 {calendar['title']}\n\n"
-                "UIU has published a new academic calendar."
-            )
-
-            keyboard = [
-                [
-                    InlineKeyboardButton(
-                        "📄 View Calendar",
-                        url=calendar["url"],
-                    )
-                ]
-            ]
-
-            markup = InlineKeyboardMarkup(keyboard)
-
-            for telegram_id in users:
-
-                try:
-                    await context.bot.send_message(
-                        chat_id=telegram_id,
-                        text=text,
-                        reply_markup=markup,
-                    )
-
-                except Exception as error:
-                    logger.warning(
-                        "Calendar notification failed for %s: %s",
-                        telegram_id,
-                        error,
-                    )
-
-        for calendar in updated_items:
-
-            text = (
-                "🔄 Academic Calendar Updated\n\n"
-                f"📅 {calendar['title']}\n\n"
-                "UIU has updated or revised this academic calendar."
-            )
-
-            keyboard = [
-                [
-                    InlineKeyboardButton(
-                        "📄 View Updated Calendar",
-                        url=calendar["url"],
-                    )
-                ]
-            ]
-
-            markup = InlineKeyboardMarkup(keyboard)
-
-            for telegram_id in users:
-
-                try:
-                    await context.bot.send_message(
-                        chat_id=telegram_id,
-                        text=text,
-                        reply_markup=markup,
-                    )
-
-                except Exception as error:
-                    logger.warning(
-                        "Calendar update notification failed for %s: %s",
-                        telegram_id,
-                        error,
-                    )
+        await send_calendar_notifications(
+            context,
+            new_items,
+            updated_items,
+        )
 
     except Exception as error:
 
@@ -445,7 +486,7 @@ def setup_handlers():
 
     telegram_app.add_handler(
         MessageHandler(
-            filters.Regex("^(🎁 Scholarship Calculator)$"),
+            filters.Regex("^🎁 Scholarship Calculator$"),
             show_not_implemented,
         )
     )
@@ -475,13 +516,7 @@ async def error_handler(
         exc_info=context.error,
     )
 
-    if (
-        isinstance(
-            update,
-            Update,
-        )
-        and update.message
-    ):
+    if isinstance(update, Update) and update.message:
 
         try:
 
@@ -495,7 +530,7 @@ async def error_handler(
 
 @asynccontextmanager
 async def lifespan(
-    app: FastAPI,
+    fastapi_app: FastAPI,
 ):
 
     Config.validate()
@@ -521,10 +556,6 @@ async def lifespan(
 
         logger.info("Academic calendar checker started.")
 
-    else:
-
-        logger.error("JobQueue is unavailable.")
-
     render_url = os.getenv("RENDER_EXTERNAL_URL")
 
     if not render_url:
@@ -545,7 +576,7 @@ async def lifespan(
     await telegram_app.bot.set_webhook(**webhook_args)
 
     logger.info(
-        "Telegram webhook configured: %s",
+        "Webhook configured: %s",
         webhook_url,
     )
 
