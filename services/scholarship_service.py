@@ -1,6 +1,5 @@
 import math
 import random
-import statistics
 
 PROGRAM_CREDIT_REQUIREMENTS = {
     "BBA": 9,
@@ -27,20 +26,14 @@ GRADUATE_PROGRAMS = {
 }
 
 MINIMUM_GPA = 3.50
-
 SIMULATIONS = 10000
 
 
 def normalize_program(program):
-    value = str(program).strip()
+    if program is None:
+        return ""
 
-    if value in PROGRAM_CREDIT_REQUIREMENTS:
-        return value
-
-    if value in GRADUATE_PROGRAMS:
-        return value
-
-    return value
+    return str(program).strip()
 
 
 def get_minimum_credits(program):
@@ -60,8 +53,6 @@ def validate_eligibility(
     program,
     qualifying_credits,
 ):
-    program = normalize_program(program)
-
     try:
         gpa = float(gpa)
         qualifying_credits = float(qualifying_credits)
@@ -71,15 +62,23 @@ def validate_eligibility(
             "reason": "invalid_input",
         }
 
+    if not 0 <= gpa <= 4:
+        return {
+            "eligible": False,
+            "reason": "invalid_input",
+        }
+
+    minimum_credits = get_minimum_credits(program)
+
     if gpa < MINIMUM_GPA:
         return {
             "eligible": False,
             "reason": "gpa",
             "minimum_gpa": MINIMUM_GPA,
             "gpa": gpa,
+            "minimum_credits": minimum_credits,
+            "qualifying_credits": qualifying_credits,
         }
-
-    minimum_credits = get_minimum_credits(program)
 
     if qualifying_credits < minimum_credits:
         return {
@@ -87,12 +86,14 @@ def validate_eligibility(
             "reason": "credits",
             "minimum_credits": minimum_credits,
             "qualifying_credits": qualifying_credits,
+            "gpa": gpa,
         }
 
     return {
         "eligible": True,
         "minimum_credits": minimum_credits,
         "qualifying_credits": qualifying_credits,
+        "gpa": gpa,
     }
 
 
@@ -102,7 +103,15 @@ def estimate_higher_students_from_gpa(
 ):
     gpa = max(
         3.50,
-        min(4.00, float(gpa)),
+        min(
+            4.00,
+            float(gpa),
+        ),
+    )
+
+    total_students = max(
+        10,
+        int(total_students),
     )
 
     normalized = (gpa - 3.50) / 0.50
@@ -111,7 +120,10 @@ def estimate_higher_students_from_gpa(
 
     estimated_top_fraction = max(
         0.01,
-        min(0.10, percentile_top),
+        min(
+            0.10,
+            percentile_top,
+        ),
     )
 
     estimated_higher = total_students * estimated_top_fraction
@@ -130,12 +142,19 @@ def estimate_higher_student_range(
     total_students,
     higher_students=None,
 ):
+    total_students = int(total_students)
+
+    if total_students < 2:
+        return 0, 0, False
+
     if higher_students is not None:
+        higher_students = int(higher_students)
+
         higher_students = max(
             0,
             min(
                 total_students - 1,
-                int(higher_students),
+                higher_students,
             ),
         )
 
@@ -154,7 +173,11 @@ def estimate_higher_student_range(
             higher_students + spread,
         )
 
-        return low, high, True
+        return (
+            low,
+            high,
+            True,
+        )
 
     estimated = estimate_higher_students_from_gpa(
         gpa,
@@ -176,13 +199,27 @@ def estimate_higher_student_range(
         int(round(estimated + spread)),
     )
 
-    return low, high, False
+    return (
+        low,
+        high,
+        False,
+    )
 
 
 def scholarship_bracket(
     position,
     total_students,
 ):
+    position = max(
+        1,
+        int(position),
+    )
+
+    total_students = max(
+        1,
+        int(total_students),
+    )
+
     top_2 = max(
         1,
         math.ceil(total_students * 0.02),
@@ -216,6 +253,13 @@ def run_monte_carlo_simulation(
     higher_students=None,
     simulations=SIMULATIONS,
 ):
+    total_students = int(total_students)
+
+    simulations = max(
+        1000,
+        int(simulations),
+    )
+
     low, high, user_estimate = estimate_higher_student_range(
         gpa,
         total_students,
@@ -232,31 +276,31 @@ def run_monte_carlo_simulation(
     positions = []
 
     for _ in range(simulations):
-        if user_estimate:
-            estimated_higher = random.triangular(
-                low,
-                high,
-                (low + high) / 2,
-            )
-        else:
-            estimated_higher = random.triangular(
-                low,
-                high,
-                (low + high) / 2,
-            )
+        estimated_higher = random.triangular(
+            low,
+            high,
+            (low + high) / 2,
+        )
+
+        estimated_higher = int(round(estimated_higher))
 
         estimated_higher = max(
             0,
             min(
                 total_students - 1,
-                int(round(estimated_higher)),
+                estimated_higher,
             ),
         )
 
         position = estimated_higher + 1
 
-        if position > total_students:
-            position = total_students
+        position = max(
+            1,
+            min(
+                total_students,
+                position,
+            ),
+        )
 
         positions.append(position)
 
@@ -267,7 +311,7 @@ def run_monte_carlo_simulation(
 
         outcomes[bracket] += 1
 
-    probabilities = {key: (value / simulations) for key, value in outcomes.items()}
+    probabilities = {key: value / simulations for key, value in outcomes.items()}
 
     return {
         "probabilities": probabilities,
@@ -313,6 +357,12 @@ def top_range_from_positions(
     positions,
     total_students,
 ):
+    if not positions:
+        return (
+            10.0,
+            10.0,
+        )
+
     percentages = [(position / total_students) * 100 for position in positions]
 
     low = min(percentages)
@@ -324,6 +374,11 @@ def top_range_from_positions(
         low,
     )
 
+    high = max(
+        low,
+        high,
+    )
+
     return (
         low,
         high,
@@ -333,7 +388,7 @@ def top_range_from_positions(
 def round_probability(
     probability,
 ):
-    percentage = probability * 100
+    percentage = float(probability) * 100
 
     if percentage < 1:
         return "<1%"
@@ -389,64 +444,100 @@ def generate_estimate(
             "eligibility": eligibility,
         }
 
-    total_students = int(total_students)
+    try:
+        total_students = int(total_students)
 
-    result = run_monte_carlo_simulation(
-        gpa=float(gpa),
-        total_students=total_students,
-        higher_students=higher_students,
-        simulations=SIMULATIONS,
-    )
+        if total_students < 2:
+            return {
+                "eligible": False,
+                "eligibility": {
+                    "reason": "invalid_input",
+                },
+            }
 
-    probabilities = result["probabilities"]
+        if higher_students is not None:
+            higher_students = int(higher_students)
 
-    confidence = calculate_confidence(
-        total_students,
-        higher_students,
-        result["used_user_estimate"],
-    )
+            if higher_students < 0 or higher_students >= total_students:
+                return {
+                    "eligible": False,
+                    "eligibility": {
+                        "reason": "higher_students",
+                        "total_students": total_students,
+                    },
+                }
 
-    position_low, position_high = top_range_from_positions(
-        result["positions"],
-        total_students,
-    )
+        simulation = run_monte_carlo_simulation(
+            gpa=float(gpa),
+            total_students=total_students,
+            higher_students=higher_students,
+            simulations=SIMULATIONS,
+        )
 
-    most_likely = most_likely_outcome(probabilities)
+        probabilities = simulation["probabilities"]
 
-    return {
-        "eligible": True,
-        "gpa": float(gpa),
-        "program": program,
-        "total_students": total_students,
-        "qualifying_credits": float(qualifying_credits),
-        "minimum_credits": eligibility["minimum_credits"],
-        "higher_students": higher_students,
-        "higher_range": result["higher_range"],
-        "probabilities": probabilities,
-        "display_probabilities": {
-            key: round_probability(value) for key, value in probabilities.items()
-        },
-        "confidence": confidence,
-        "most_likely": most_likely,
-        "position_top_range": (
-            position_low,
-            position_high,
-        ),
-        "simulations": SIMULATIONS,
-    }
+        confidence = calculate_confidence(
+            total_students,
+            higher_students,
+            simulation["used_user_estimate"],
+        )
+
+        position_low, position_high = top_range_from_positions(
+            simulation["positions"],
+            total_students,
+        )
+
+        most_likely = most_likely_outcome(probabilities)
+
+        return {
+            "eligible": True,
+            "gpa": float(gpa),
+            "program": normalize_program(program),
+            "total_students": total_students,
+            "qualifying_credits": float(qualifying_credits),
+            "minimum_credits": eligibility["minimum_credits"],
+            "higher_students": higher_students,
+            "higher_range": simulation["higher_range"],
+            "probabilities": probabilities,
+            "display_probabilities": {
+                key: round_probability(value) for key, value in probabilities.items()
+            },
+            "confidence": confidence,
+            "most_likely": most_likely,
+            "position_top_range": (
+                position_low,
+                position_high,
+            ),
+            "simulations": simulation["simulations"],
+        }
+
+    except Exception:
+        return {
+            "eligible": False,
+            "eligibility": {
+                "reason": "calculation_error",
+            },
+        }
 
 
 def format_top_range(
     low,
     high,
 ):
-    low = round(low)
-    high = round(high)
+    low = round(
+        float(low),
+        1,
+    )
+
+    high = round(
+        float(high),
+        1,
+    )
 
     if low == high:
-        return f"Top {low}%"
+        return f"Top {low:g}%"
 
-    return f"Top {low}–{high}%"
+    return f"Top {low:g}–{high:g}%"
 
 
 def generate_result_text(
@@ -484,20 +575,22 @@ def generate_result_text(
         f"<b>Program Size:</b> ~{total_students} students\n"
         f"<b>Qualifying Credits:</b> {credits:g}\n"
         f"<b>Minimum Required:</b> {minimum_credits:g}\n\n"
-        f"📊 <b>Estimated Position:</b> {top_range}\n\n"
+        f"📊 <b>Estimated Position:</b> "
+        f"{top_range}\n\n"
         "🏆 <b>Estimated Scholarship Chances</b>\n\n"
         f"🥇 100% → <b>{probabilities['100%']}</b>\n"
         f"🥈 50% → <b>{probabilities['50%']}</b>\n"
         f"🥉 25% → <b>{probabilities['25%']}</b>\n"
-        f"❌ No Scholarship → <b>{probabilities['No Scholarship']}</b>\n\n"
+        f"❌ No Scholarship → "
+        f"<b>{probabilities['No Scholarship']}</b>\n\n"
         f"🎯 <b>Most Likely Outcome:</b> "
         f"{most_likely} Scholarship\n\n"
         f"📈 <b>Confidence:</b> {confidence}\n\n"
-        "⚠️ <b>Important:</b> This estimator provides "
-        "an approximate statistical prediction based on "
-        "the information available. It is not an official "
-        "UIU ranking or scholarship decision. Final scholarship "
-        "decisions are determined by UIU.\n\n"
+        "⚠️ <b>Important:</b> This is an approximate "
+        "statistical prediction based on the information "
+        "provided. It is not an official UIU ranking or "
+        "scholarship decision. Final scholarship decisions "
+        "are determined by UIU.\n\n"
         "📌 Scholarship is subject to the applicable credit "
         "limit and excludes Thesis, Project, Internship, "
         "Retake and Repeat courses."
@@ -507,7 +600,10 @@ def generate_result_text(
 def generate_ineligible_text(
     eligibility,
 ):
-    reason = eligibility["reason"]
+    reason = eligibility.get(
+        "reason",
+        "invalid_input",
+    )
 
     if reason == "gpa":
         return (
@@ -528,8 +624,21 @@ def generate_ineligible_text(
             f"Minimum required: "
             f"<b>{eligibility['minimum_credits']:g}</b>\n\n"
             "Based on the provided information, you do not "
-            "meet the minimum credit requirement for the "
-            "scholarship estimator."
+            "meet the minimum credit requirement."
+        )
+
+    if reason == "higher_students":
+        return (
+            "⚠️ <b>Invalid Higher-GPA Estimate</b>\n\n"
+            "The estimated number of students with a higher "
+            "GPA must be smaller than the total program size."
+        )
+
+    if reason == "calculation_error":
+        return (
+            "⚠️ <b>Unable to Complete Estimate</b>\n\n"
+            "The statistical calculation could not be completed "
+            "right now. Please try again."
         )
 
     return (
@@ -559,6 +668,6 @@ def scholarship_rules_text():
         "🚫 <b>Excluded Courses</b>\n"
         "Thesis, Project, Internship, Retake and Repeat "
         "courses are excluded from merit scholarship coverage.\n\n"
-        "⚠️ Scholarship eligibility and ranking depend on "
-        "official UIU regulations and merit assessment."
+        "⚠️ The estimator is not an official UIU ranking "
+        "or scholarship decision."
     )

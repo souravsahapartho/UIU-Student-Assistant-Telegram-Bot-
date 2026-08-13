@@ -1,3 +1,5 @@
+import logging
+
 from telegram import (
     Update,
     ReplyKeyboardMarkup,
@@ -10,6 +12,15 @@ from telegram.ext import (
     ConversationHandler,
 )
 
+from states import (
+    SCHOLARSHIP_GPA,
+    SCHOLARSHIP_PROGRAM,
+    SCHOLARSHIP_SIZE,
+    SCHOLARSHIP_CREDITS,
+    SCHOLARSHIP_HIGHER_CHOICE,
+    SCHOLARSHIP_HIGHER_COUNT,
+)
+
 from services.scholarship_service import (
     generate_estimate,
     generate_result_text,
@@ -17,12 +28,9 @@ from services.scholarship_service import (
     scholarship_rules_text,
 )
 
-SCHOLARSHIP_GPA = 500
-SCHOLARSHIP_PROGRAM = 501
-SCHOLARSHIP_SIZE = 502
-SCHOLARSHIP_CREDITS = 503
-SCHOLARSHIP_HIGHER_CHOICE = 504
-SCHOLARSHIP_HIGHER_COUNT = 505
+from keyboards import get_main_menu
+
+logger = logging.getLogger(__name__)
 
 
 PROGRAM_OPTIONS = [
@@ -57,7 +65,6 @@ def cancel_keyboard():
 
 def program_keyboard():
     rows = []
-
     current = []
 
     for program in PROGRAM_OPTIONS:
@@ -110,19 +117,19 @@ def result_keyboard():
                 InlineKeyboardButton(
                     "🔄 Calculate Again",
                     callback_data="scholarship_again",
-                ),
+                )
             ],
             [
                 InlineKeyboardButton(
                     "📚 Scholarship Rules",
                     callback_data="scholarship_rules",
-                ),
+                )
             ],
             [
                 InlineKeyboardButton(
                     "🏠 Main Menu",
                     callback_data="scholarship_main_menu",
-                ),
+                )
             ],
         ]
     )
@@ -139,7 +146,7 @@ async def scholarship_start(
         "Let's estimate your merit scholarship chances.\n\n"
         "⚠️ This is an estimate, not an official UIU "
         "scholarship decision.\n\n"
-        "Step 1 of 4\n\n"
+        "<b>Step 1 of 4</b>\n\n"
         "Enter your <b>previous trimester/semester GPA</b>.\n\n"
         "Example: <code>3.78</code>",
         reply_markup=cancel_keyboard(),
@@ -175,31 +182,22 @@ async def scholarship_gpa(
     context.user_data["scholarship_data"]["gpa"] = gpa
 
     if gpa < 3.50:
-        from services.scholarship_service import (
-            generate_ineligible_text,
-            validate_eligibility,
-        )
-
-        eligibility = validate_eligibility(
-            gpa,
-            "Unknown",
-            0,
-        )
+        eligibility = {
+            "reason": "gpa",
+            "minimum_gpa": 3.50,
+            "gpa": gpa,
+        }
 
         await update.message.reply_text(
             generate_ineligible_text(eligibility),
-            parse_mode="HTML",
-        )
-
-        await update.message.reply_text(
-            "You can start a new estimate whenever you want.",
             reply_markup=cancel_keyboard(),
+            parse_mode="HTML",
         )
 
         return SCHOLARSHIP_GPA
 
     await update.message.reply_text(
-        "Step 2 of 4\n\n" "🎓 <b>Select your program:</b>",
+        "<b>Step 2 of 4</b>\n\n" "🎓 <b>Select your program:</b>",
         reply_markup=program_keyboard(),
         parse_mode="HTML",
     )
@@ -230,7 +228,7 @@ async def scholarship_program(
     context.user_data["scholarship_data"]["program"] = program
 
     await update.message.reply_text(
-        "Step 3 of 4\n\n"
+        "<b>Step 3 of 4</b>\n\n"
         "👥 Approximately how many students are "
         "in your program?\n\n"
         "Example: <code>500</code>",
@@ -256,6 +254,8 @@ async def scholarship_size(
     except ValueError:
         await update.message.reply_text(
             "⚠️ Please enter a reasonable student count.\n\n"
+            "Minimum: <code>10</code>\n"
+            "Maximum: <code>100000</code>\n\n"
             "Example: <code>500</code>",
             reply_markup=cancel_keyboard(),
             parse_mode="HTML",
@@ -275,8 +275,8 @@ async def scholarship_size(
 
     await update.message.reply_text(
         "📚 <b>Qualifying Credits</b>\n\n"
-        f"How many credits did you register in the "
-        f"qualifying trimester/semester?\n\n"
+        "How many credits did you register in the "
+        "qualifying trimester/semester?\n\n"
         f"Minimum required for <b>{program}</b>: "
         f"<b>{minimum_credits:g}</b> credits\n\n"
         "Example: <code>12</code>",
@@ -311,10 +311,11 @@ async def scholarship_credits(
     context.user_data["scholarship_data"]["qualifying_credits"] = credits
 
     await update.message.reply_text(
-        "Step 4 of 4\n\n"
+        "<b>Step 4 of 4</b>\n\n"
         "📊 Do you have an idea how many students "
         "may have a higher GPA than you?",
         reply_markup=higher_choice_keyboard(),
+        parse_mode="HTML",
     )
 
     return SCHOLARSHIP_HIGHER_CHOICE
@@ -365,20 +366,45 @@ async def scholarship_higher_count(
 ):
     text = update.message.text.strip()
 
+    data = context.user_data.get(
+        "scholarship_data",
+        {},
+    )
+
     try:
         higher = int(text)
+        total_students = int(
+            data.get(
+                "total_students",
+                0,
+            )
+        )
 
-        total_students = context.user_data["scholarship_data"]["total_students"]
-
-        if higher < 0 or higher >= total_students:
+        if total_students <= 0:
             raise ValueError
+
+        if higher < 0:
+            raise ValueError
+
+        if higher >= total_students:
+            await update.message.reply_text(
+                "⚠️ <b>Invalid estimate.</b>\n\n"
+                f"Your program size is "
+                f"<b>{total_students}</b> students.\n\n"
+                "The number of students with a higher GPA "
+                f"must be between <b>0</b> and "
+                f"<b>{total_students - 1}</b>.",
+                reply_markup=cancel_keyboard(),
+                parse_mode="HTML",
+            )
+
+            return SCHOLARSHIP_HIGHER_COUNT
 
     except ValueError:
         await update.message.reply_text(
-            "⚠️ Please enter a valid number of students.\n\n"
-            "The number cannot be negative or equal to/"
-            "greater than the total program size.",
+            "⚠️ Please enter a valid whole number.\n\n" "Example: <code>20</code>",
             reply_markup=cancel_keyboard(),
+            parse_mode="HTML",
         )
 
         return SCHOLARSHIP_HIGHER_COUNT
@@ -400,46 +426,88 @@ async def calculate_scholarship(
         {},
     )
 
-    result = generate_estimate(
-        gpa=data.get("gpa"),
-        program=data.get("program"),
-        total_students=data.get("total_students"),
-        qualifying_credits=data.get("qualifying_credits"),
-        higher_students=data.get("higher_students"),
-    )
+    required = [
+        "gpa",
+        "program",
+        "total_students",
+        "qualifying_credits",
+    ]
 
-    if not result.get("eligible"):
-        text = generate_ineligible_text(
-            result.get(
-                "eligibility",
-                {},
-            )
-        )
-
+    if any(key not in data for key in required):
         await update.message.reply_text(
-            text,
-            parse_mode="HTML",
-        )
-
-        await update.message.reply_text(
-            "You can start another estimate whenever you want.",
+            "⚠️ Some required information is missing. "
+            "Please start the calculator again.",
             reply_markup=cancel_keyboard(),
         )
 
         return SCHOLARSHIP_GPA
 
-    await update.message.reply_text(
-        generate_result_text(result),
-        reply_markup=result_keyboard(),
-        parse_mode="HTML",
-    )
+    try:
+        result = generate_estimate(
+            gpa=data["gpa"],
+            program=data["program"],
+            total_students=data["total_students"],
+            qualifying_credits=data["qualifying_credits"],
+            higher_students=data.get("higher_students"),
+        )
 
-    context.user_data.pop(
-        "scholarship_data",
-        None,
-    )
+        if not result.get("eligible"):
+            await update.message.reply_text(
+                generate_ineligible_text(
+                    result.get(
+                        "eligibility",
+                        {},
+                    )
+                ),
+                reply_markup=cancel_keyboard(),
+                parse_mode="HTML",
+            )
 
-    return ConversationHandler.END
+            if (
+                result.get(
+                    "eligibility",
+                    {},
+                ).get("reason")
+                == "calculation_error"
+            ):
+                logger.error(
+                    "Scholarship calculation returned calculation_error: %s",
+                    data,
+                )
+
+            return SCHOLARSHIP_GPA
+
+        context.user_data["scholarship_result"] = result
+
+        await update.message.reply_text(
+            generate_result_text(result),
+            reply_markup=result_keyboard(),
+            parse_mode="HTML",
+        )
+
+        context.user_data.pop(
+            "scholarship_data",
+            None,
+        )
+
+        return ConversationHandler.END
+
+    except Exception as error:
+        logger.exception(
+            "Scholarship calculation failed. Data=%s Error=%s",
+            data,
+            error,
+        )
+
+        await update.message.reply_text(
+            "⚠️ <b>Unable to complete the estimate.</b>\n\n"
+            "Something went wrong while processing the "
+            "statistical calculation. Please try again.",
+            reply_markup=cancel_keyboard(),
+            parse_mode="HTML",
+        )
+
+        return SCHOLARSHIP_GPA
 
 
 async def scholarship_callback(
@@ -449,6 +517,21 @@ async def scholarship_callback(
     query = update.callback_query
 
     await query.answer()
+
+    if query.data == "scholarship_again":
+        context.user_data["scholarship_data"] = {}
+
+        await query.message.reply_text(
+            "🎓 <b>Scholarship Chance Estimator</b>\n\n"
+            "Let's create a new estimate.\n\n"
+            "<b>Step 1 of 4</b>\n\n"
+            "Enter your <b>previous trimester/semester GPA</b>.\n\n"
+            "Example: <code>3.78</code>",
+            reply_markup=cancel_keyboard(),
+            parse_mode="HTML",
+        )
+
+        return SCHOLARSHIP_GPA
 
     if query.data == "scholarship_rules":
         keyboard = InlineKeyboardMarkup(
@@ -471,44 +554,52 @@ async def scholarship_callback(
         return
 
     if query.data == "scholarship_back":
-        await query.edit_message_text(
-            "🎓 <b>Scholarship Estimate</b>\n\n"
-            "Use <b>🔄 Calculate Again</b> below "
-            "to create a new estimate.",
-            reply_markup=result_keyboard(),
-            parse_mode="HTML",
-        )
+        result = context.user_data.get("scholarship_result")
 
-        return
-
-    if query.data == "scholarship_again":
-        await query.message.reply_text(
-            "🎓 <b>Scholarship Chance Estimator</b>\n\n"
-            "Enter your previous trimester/semester GPA.\n\n"
-            "Example: <code>3.78</code>",
-            reply_markup=cancel_keyboard(),
-            parse_mode="HTML",
-        )
+        if result:
+            await query.edit_message_text(
+                generate_result_text(result),
+                reply_markup=result_keyboard(),
+                parse_mode="HTML",
+            )
+        else:
+            await query.edit_message_text(
+                "🎓 <b>Scholarship Estimate</b>\n\n" "Please start a new calculation.",
+                parse_mode="HTML",
+            )
 
         return
 
     if query.data == "scholarship_main_menu":
-        from keyboards import get_main_menu
+        context.user_data.pop(
+            "scholarship_data",
+            None,
+        )
+
+        context.user_data.pop(
+            "scholarship_result",
+            None,
+        )
 
         await query.message.reply_text(
             "🏠 Main Menu",
             reply_markup=get_main_menu(),
         )
 
+        return
+
 
 async def scholarship_cancel(
     update: Update,
     context: ContextTypes.DEFAULT_TYPE,
 ):
-    from keyboards import get_main_menu
-
     context.user_data.pop(
         "scholarship_data",
+        None,
+    )
+
+    context.user_data.pop(
+        "scholarship_result",
         None,
     )
 

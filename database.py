@@ -1,50 +1,43 @@
 import logging
-import sqlite3
+import os
 from typing import Any, Optional
 
-DB_NAME = "uiu_assistant.db"
+import mysql.connector
+from dotenv import load_dotenv
+
+load_dotenv()
 
 logger = logging.getLogger(__name__)
 
 
 def get_connection():
-    conn = sqlite3.connect(
-        DB_NAME,
-        timeout=30,
+    host = os.getenv("TIDB_HOST")
+    port = os.getenv("TIDB_PORT", "4000")
+    user = os.getenv("TIDB_USER")
+    password = os.getenv("TIDB_PASSWORD")
+    database = os.getenv("TIDB_DATABASE", "sys")
+
+    if not host:
+        raise RuntimeError("TIDB_HOST is not configured.")
+
+    if not user:
+        raise RuntimeError("TIDB_USER is not configured.")
+
+    if not password:
+        raise RuntimeError("TIDB_PASSWORD is not configured.")
+
+    return mysql.connector.connect(
+        host=host,
+        port=int(port),
+        user=user,
+        password=password,
+        database=database,
+        ssl_disabled=False,
+        ssl_verify_cert=False,
+        ssl_verify_identity=False,
+        connection_timeout=30,
+        autocommit=False,
     )
-    conn.row_factory = sqlite3.Row
-    conn.execute("PRAGMA journal_mode=WAL")
-    conn.execute("PRAGMA busy_timeout=30000")
-    return conn
-
-
-def column_exists(
-    cursor,
-    table_name: str,
-    column_name: str,
-):
-    cursor.execute(f"PRAGMA table_info({table_name})")
-
-    columns = cursor.fetchall()
-
-    return any(row["name"] == column_name for row in columns)
-
-
-def ensure_column(
-    cursor,
-    table_name: str,
-    column_name: str,
-    definition: str,
-):
-    if not column_exists(
-        cursor,
-        table_name,
-        column_name,
-    ):
-        cursor.execute(f"""
-            ALTER TABLE {table_name}
-            ADD COLUMN {column_name} {definition}
-            """)
 
 
 def init_db():
@@ -55,10 +48,11 @@ def init_db():
 
         cursor.execute("""
             CREATE TABLE IF NOT EXISTS users (
-                id INTEGER PRIMARY KEY AUTOINCREMENT,
-                telegram_id INTEGER UNIQUE,
-                first_name TEXT,
-                username TEXT,
+                id BIGINT AUTO_INCREMENT PRIMARY KEY,
+                telegram_id BIGINT UNIQUE NOT NULL,
+                first_name VARCHAR(255),
+                username VARCHAR(255),
+                notifications_enabled TINYINT DEFAULT 1,
                 created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
                 last_active TIMESTAMP DEFAULT CURRENT_TIMESTAMP
             )
@@ -66,160 +60,59 @@ def init_db():
 
         cursor.execute("""
             CREATE TABLE IF NOT EXISTS settings (
-                key TEXT PRIMARY KEY,
-                value TEXT,
+                `key` VARCHAR(255) PRIMARY KEY,
+                `value` TEXT,
                 updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
+                    ON UPDATE CURRENT_TIMESTAMP
             )
             """)
 
         cursor.execute("""
             CREATE TABLE IF NOT EXISTS notices (
-                id INTEGER PRIMARY KEY AUTOINCREMENT,
+                id BIGINT AUTO_INCREMENT PRIMARY KEY,
                 title TEXT NOT NULL,
                 description TEXT,
                 url TEXT,
+                link TEXT,
+                published_date VARCHAR(255),
                 created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
             )
             """)
 
         cursor.execute("""
             CREATE TABLE IF NOT EXISTS academic_calendars (
-                id INTEGER PRIMARY KEY AUTOINCREMENT,
+                id BIGINT AUTO_INCREMENT PRIMARY KEY,
                 title TEXT NOT NULL,
-                url TEXT UNIQUE NOT NULL,
-                content_hash TEXT NOT NULL,
-                content TEXT,
+                url VARCHAR(2048) NOT NULL,
+                content_hash VARCHAR(128) NOT NULL,
+                content LONGTEXT,
                 created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
                 updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
+                    ON UPDATE CURRENT_TIMESTAMP,
+                UNIQUE KEY unique_calendar_url (url(768))
             )
             """)
 
         cursor.execute("""
             CREATE TABLE IF NOT EXISTS notification_settings (
-                telegram_id INTEGER PRIMARY KEY,
-                enabled INTEGER DEFAULT 1,
+                telegram_id BIGINT PRIMARY KEY,
+                enabled TINYINT DEFAULT 1,
                 updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
+                    ON UPDATE CURRENT_TIMESTAMP
             )
-            """)
-
-        ensure_column(
-            cursor,
-            "users",
-            "notifications_enabled",
-            "INTEGER DEFAULT 1",
-        )
-
-        ensure_column(
-            cursor,
-            "users",
-            "first_name",
-            "TEXT",
-        )
-
-        ensure_column(
-            cursor,
-            "users",
-            "username",
-            "TEXT",
-        )
-
-        ensure_column(
-            cursor,
-            "users",
-            "created_at",
-            "TIMESTAMP DEFAULT CURRENT_TIMESTAMP",
-        )
-
-        ensure_column(
-            cursor,
-            "users",
-            "last_active",
-            "TIMESTAMP DEFAULT CURRENT_TIMESTAMP",
-        )
-
-        ensure_column(
-            cursor,
-            "notices",
-            "description",
-            "TEXT",
-        )
-
-        ensure_column(
-            cursor,
-            "notices",
-            "url",
-            "TEXT",
-        )
-
-        ensure_column(
-            cursor,
-            "notices",
-            "link",
-            "TEXT",
-        )
-
-        ensure_column(
-            cursor,
-            "notices",
-            "published_date",
-            "TEXT",
-        )
-
-        ensure_column(
-            cursor,
-            "academic_calendars",
-            "content_hash",
-            "TEXT DEFAULT ''",
-        )
-
-        ensure_column(
-            cursor,
-            "academic_calendars",
-            "content",
-            "TEXT",
-        )
-
-        ensure_column(
-            cursor,
-            "academic_calendars",
-            "created_at",
-            "TIMESTAMP DEFAULT CURRENT_TIMESTAMP",
-        )
-
-        ensure_column(
-            cursor,
-            "academic_calendars",
-            "updated_at",
-            "TIMESTAMP DEFAULT CURRENT_TIMESTAMP",
-        )
-
-        cursor.execute("""
-            UPDATE notices
-            SET url = link
-            WHERE
-                (url IS NULL OR url = '')
-                AND link IS NOT NULL
-                AND link != ''
-            """)
-
-        cursor.execute("""
-            UPDATE notices
-            SET link = url
-            WHERE
-                (link IS NULL OR link = '')
-                AND url IS NOT NULL
-                AND url != ''
-            """)
-
-        cursor.execute("""
-            UPDATE academic_calendars
-            SET content_hash = ''
-            WHERE content_hash IS NULL
             """)
 
         conn.commit()
 
+        logger.info("TiDB tables initialized successfully.")
+
+    except Exception:
+        conn.rollback()
+        logger.exception("Failed to initialize TiDB.")
+        raise
+
     finally:
+        cursor.close()
         conn.close()
 
 
@@ -238,12 +131,13 @@ def log_user_activity(
             INSERT INTO users (
                 telegram_id,
                 first_name,
-                username
+                username,
+                last_active
             )
-            VALUES (?, ?, ?)
-            ON CONFLICT(telegram_id) DO UPDATE SET
-                first_name = excluded.first_name,
-                username = excluded.username,
+            VALUES (%s, %s, %s, CURRENT_TIMESTAMP)
+            ON DUPLICATE KEY UPDATE
+                first_name = VALUES(first_name),
+                username = VALUES(username),
                 last_active = CURRENT_TIMESTAMP
             """,
             (
@@ -255,12 +149,11 @@ def log_user_activity(
 
         cursor.execute(
             """
-            INSERT INTO notification_settings (
+            INSERT IGNORE INTO notification_settings (
                 telegram_id,
                 enabled
             )
-            VALUES (?, 1)
-            ON CONFLICT(telegram_id) DO NOTHING
+            VALUES (%s, 1)
             """,
             (telegram_id,),
         )
@@ -268,6 +161,7 @@ def log_user_activity(
         conn.commit()
 
     finally:
+        cursor.close()
         conn.close()
 
 
@@ -277,13 +171,13 @@ def get_user(
     conn = get_connection()
 
     try:
-        cursor = conn.cursor()
+        cursor = conn.cursor(dictionary=True)
 
         cursor.execute(
             """
             SELECT *
             FROM users
-            WHERE telegram_id = ?
+            WHERE telegram_id = %s
             """,
             (telegram_id,),
         )
@@ -291,6 +185,7 @@ def get_user(
         return cursor.fetchone()
 
     finally:
+        cursor.close()
         conn.close()
 
 
@@ -298,7 +193,7 @@ def get_all_users():
     conn = get_connection()
 
     try:
-        cursor = conn.cursor()
+        cursor = conn.cursor(dictionary=True)
 
         cursor.execute("""
             SELECT telegram_id
@@ -307,11 +202,10 @@ def get_all_users():
             ORDER BY id ASC
             """)
 
-        rows = cursor.fetchall()
-
-        return [row["telegram_id"] for row in rows]
+        return [row["telegram_id"] for row in cursor.fetchall()]
 
     finally:
+        cursor.close()
         conn.close()
 
 
@@ -319,7 +213,7 @@ def get_user_count():
     conn = get_connection()
 
     try:
-        cursor = conn.cursor()
+        cursor = conn.cursor(dictionary=True)
 
         cursor.execute("""
             SELECT COUNT(*) AS count
@@ -331,6 +225,7 @@ def get_user_count():
         return row["count"]
 
     finally:
+        cursor.close()
         conn.close()
 
 
@@ -341,23 +236,26 @@ def get_setting(
     conn = get_connection()
 
     try:
-        cursor = conn.cursor()
+        cursor = conn.cursor(dictionary=True)
 
         cursor.execute(
             """
-            SELECT value
+            SELECT `value`
             FROM settings
-            WHERE key = ?
+            WHERE `key` = %s
             """,
             (key,),
         )
 
         row = cursor.fetchone()
 
-        if row is None:
+        if not row:
             return default
 
         value = row["value"]
+
+        if value is None:
+            return default
 
         try:
             number = float(value)
@@ -374,6 +272,7 @@ def get_setting(
             return value
 
     finally:
+        cursor.close()
         conn.close()
 
 
@@ -389,12 +288,12 @@ def update_setting(
         cursor.execute(
             """
             INSERT INTO settings (
-                key,
-                value
+                `key`,
+                `value`
             )
-            VALUES (?, ?)
-            ON CONFLICT(key) DO UPDATE SET
-                value = excluded.value,
+            VALUES (%s, %s)
+            ON DUPLICATE KEY UPDATE
+                `value` = VALUES(`value`),
                 updated_at = CURRENT_TIMESTAMP
             """,
             (
@@ -406,6 +305,7 @@ def update_setting(
         conn.commit()
 
     finally:
+        cursor.close()
         conn.close()
 
 
@@ -415,7 +315,7 @@ def get_recent_notices(
     conn = get_connection()
 
     try:
-        cursor = conn.cursor()
+        cursor = conn.cursor(dictionary=True)
 
         cursor.execute(
             """
@@ -424,21 +324,20 @@ def get_recent_notices(
                 title,
                 description,
                 url,
-                url AS link,
+                link,
                 published_date,
                 created_at
             FROM notices
-            ORDER BY
-                datetime(created_at) DESC,
-                id DESC
-            LIMIT ?
+            ORDER BY created_at DESC, id DESC
+            LIMIT %s
             """,
-            (limit,),
+            (int(limit),),
         )
 
         return cursor.fetchall()
 
     finally:
+        cursor.close()
         conn.close()
 
 
@@ -451,13 +350,13 @@ def add_notice(
     conn = get_connection()
 
     try:
-        cursor = conn.cursor()
+        cursor = conn.cursor(dictionary=True)
 
         cursor.execute(
             """
             SELECT id
             FROM notices
-            WHERE url = ?
+            WHERE url = %s
             LIMIT 1
             """,
             (url,),
@@ -477,7 +376,7 @@ def add_notice(
                 link,
                 published_date
             )
-            VALUES (?, ?, ?, ?, ?)
+            VALUES (%s, %s, %s, %s, %s)
             """,
             (
                 title,
@@ -493,6 +392,7 @@ def add_notice(
         return cursor.lastrowid
 
     finally:
+        cursor.close()
         conn.close()
 
 
@@ -504,16 +404,16 @@ def add_notice_if_new(
     conn = get_connection()
 
     try:
-        cursor = conn.cursor()
+        cursor = conn.cursor(dictionary=True)
 
         cursor.execute(
             """
             SELECT id
             FROM notices
             WHERE
-                title = ?
-                OR url = ?
-                OR link = ?
+                title = %s
+                OR url = %s
+                OR link = %s
             LIMIT 1
             """,
             (
@@ -534,7 +434,7 @@ def add_notice_if_new(
                 link,
                 published_date
             )
-            VALUES (?, ?, ?, ?)
+            VALUES (%s, %s, %s, %s)
             """,
             (
                 title,
@@ -549,6 +449,7 @@ def add_notice_if_new(
         return True
 
     finally:
+        cursor.close()
         conn.close()
 
 
@@ -558,14 +459,13 @@ def get_notice_by_url(
     conn = get_connection()
 
     try:
-        cursor = conn.cursor()
+        cursor = conn.cursor(dictionary=True)
 
         cursor.execute(
             """
             SELECT *
             FROM notices
-            WHERE url = ?
-            ORDER BY id DESC
+            WHERE url = %s
             LIMIT 1
             """,
             (url,),
@@ -574,6 +474,7 @@ def get_notice_by_url(
         return cursor.fetchone()
 
     finally:
+        cursor.close()
         conn.close()
 
 
@@ -583,13 +484,13 @@ def get_notice(
     conn = get_connection()
 
     try:
-        cursor = conn.cursor()
+        cursor = conn.cursor(dictionary=True)
 
         cursor.execute(
             """
             SELECT *
             FROM notices
-            WHERE id = ?
+            WHERE id = %s
             """,
             (notice_id,),
         )
@@ -597,6 +498,7 @@ def get_notice(
         return cursor.fetchone()
 
     finally:
+        cursor.close()
         conn.close()
 
 
@@ -611,7 +513,7 @@ def delete_notice(
         cursor.execute(
             """
             DELETE FROM notices
-            WHERE id = ?
+            WHERE id = %s
             """,
             (notice_id,),
         )
@@ -621,6 +523,7 @@ def delete_notice(
         return cursor.rowcount > 0
 
     finally:
+        cursor.close()
         conn.close()
 
 
@@ -630,13 +533,13 @@ def get_notification_status(
     conn = get_connection()
 
     try:
-        cursor = conn.cursor()
+        cursor = conn.cursor(dictionary=True)
 
         cursor.execute(
             """
             SELECT enabled
             FROM notification_settings
-            WHERE telegram_id = ?
+            WHERE telegram_id = %s
             """,
             (telegram_id,),
         )
@@ -650,7 +553,7 @@ def get_notification_status(
                     telegram_id,
                     enabled
                 )
-                VALUES (?, 1)
+                VALUES (%s, 1)
                 """,
                 (telegram_id,),
             )
@@ -662,6 +565,7 @@ def get_notification_status(
         return bool(row["enabled"])
 
     finally:
+        cursor.close()
         conn.close()
 
 
@@ -680,9 +584,9 @@ def set_notification_status(
                 telegram_id,
                 enabled
             )
-            VALUES (?, ?)
-            ON CONFLICT(telegram_id) DO UPDATE SET
-                enabled = excluded.enabled,
+            VALUES (%s, %s)
+            ON DUPLICATE KEY UPDATE
+                enabled = VALUES(enabled),
                 updated_at = CURRENT_TIMESTAMP
             """,
             (
@@ -694,6 +598,7 @@ def set_notification_status(
         conn.commit()
 
     finally:
+        cursor.close()
         conn.close()
 
 
@@ -703,13 +608,13 @@ def toggle_notification(
     conn = get_connection()
 
     try:
-        cursor = conn.cursor()
+        cursor = conn.cursor(dictionary=True)
 
         cursor.execute(
             """
             SELECT enabled
             FROM notification_settings
-            WHERE telegram_id = ?
+            WHERE telegram_id = %s
             """,
             (telegram_id,),
         )
@@ -725,7 +630,7 @@ def toggle_notification(
                     telegram_id,
                     enabled
                 )
-                VALUES (?, ?)
+                VALUES (%s, %s)
                 """,
                 (
                     telegram_id,
@@ -734,17 +639,15 @@ def toggle_notification(
             )
 
         else:
-            current_status = bool(row["enabled"])
-
-            new_status = 0 if current_status else 1
+            new_status = 0 if bool(row["enabled"]) else 1
 
             cursor.execute(
                 """
                 UPDATE notification_settings
                 SET
-                    enabled = ?,
+                    enabled = %s,
                     updated_at = CURRENT_TIMESTAMP
-                WHERE telegram_id = ?
+                WHERE telegram_id = %s
                 """,
                 (
                     new_status,
@@ -757,6 +660,7 @@ def toggle_notification(
         return bool(new_status)
 
     finally:
+        cursor.close()
         conn.close()
 
 
@@ -764,7 +668,7 @@ def get_notification_users():
     conn = get_connection()
 
     try:
-        cursor = conn.cursor()
+        cursor = conn.cursor(dictionary=True)
 
         cursor.execute("""
             SELECT u.telegram_id
@@ -772,16 +676,15 @@ def get_notification_users():
             LEFT JOIN notification_settings n
                 ON u.telegram_id = n.telegram_id
             WHERE
-                COALESCE(n.enabled, 1) = 1
-                AND u.telegram_id IS NOT NULL
+                u.telegram_id IS NOT NULL
+                AND COALESCE(n.enabled, 1) = 1
             ORDER BY u.id ASC
             """)
 
-        rows = cursor.fetchall()
-
-        return [row["telegram_id"] for row in rows]
+        return [row["telegram_id"] for row in cursor.fetchall()]
 
     finally:
+        cursor.close()
         conn.close()
 
 
@@ -795,13 +698,13 @@ def get_calendar_by_url(
     conn = get_connection()
 
     try:
-        cursor = conn.cursor()
+        cursor = conn.cursor(dictionary=True)
 
         cursor.execute(
             """
             SELECT *
             FROM academic_calendars
-            WHERE url = ?
+            WHERE url = %s
             LIMIT 1
             """,
             (url,),
@@ -810,6 +713,7 @@ def get_calendar_by_url(
         return cursor.fetchone()
 
     finally:
+        cursor.close()
         conn.close()
 
 
@@ -819,13 +723,13 @@ def get_calendar_by_id(
     conn = get_connection()
 
     try:
-        cursor = conn.cursor()
+        cursor = conn.cursor(dictionary=True)
 
         cursor.execute(
             """
             SELECT *
             FROM academic_calendars
-            WHERE id = ?
+            WHERE id = %s
             """,
             (calendar_id,),
         )
@@ -833,6 +737,7 @@ def get_calendar_by_id(
         return cursor.fetchone()
 
     finally:
+        cursor.close()
         conn.close()
 
 
@@ -845,33 +750,36 @@ def save_calendar(
     conn = get_connection()
 
     try:
-        cursor = conn.cursor()
+        cursor = conn.cursor(dictionary=True)
 
-        existing = cursor.execute(
+        cursor.execute(
             """
             SELECT id
             FROM academic_calendars
-            WHERE url = ?
+            WHERE url = %s
+            LIMIT 1
             """,
             (url,),
-        ).fetchone()
+        )
+
+        existing = cursor.fetchone()
 
         if existing:
             cursor.execute(
                 """
                 UPDATE academic_calendars
                 SET
-                    title = ?,
-                    content_hash = ?,
-                    content = ?,
+                    title = %s,
+                    content_hash = %s,
+                    content = %s,
                     updated_at = CURRENT_TIMESTAMP
-                WHERE url = ?
+                WHERE id = %s
                 """,
                 (
                     title,
                     content_hash,
                     content,
-                    url,
+                    existing["id"],
                 ),
             )
 
@@ -886,7 +794,7 @@ def save_calendar(
                     content_hash,
                     content
                 )
-                VALUES (?, ?, ?, ?)
+                VALUES (%s, %s, %s, %s)
                 """,
                 (
                     title,
@@ -903,6 +811,7 @@ def save_calendar(
         return calendar_id
 
     finally:
+        cursor.close()
         conn.close()
 
 
@@ -912,32 +821,29 @@ def get_calendars(
     conn = get_connection()
 
     try:
-        cursor = conn.cursor()
+        cursor = conn.cursor(dictionary=True)
 
-        if limit is not None:
+        if limit is None:
+            cursor.execute("""
+                SELECT *
+                FROM academic_calendars
+                ORDER BY updated_at DESC, id DESC
+                """)
+        else:
             cursor.execute(
                 """
                 SELECT *
                 FROM academic_calendars
-                ORDER BY
-                    datetime(updated_at) DESC,
-                    id DESC
-                LIMIT ?
+                ORDER BY updated_at DESC, id DESC
+                LIMIT %s
                 """,
-                (limit,),
+                (int(limit),),
             )
-        else:
-            cursor.execute("""
-                SELECT *
-                FROM academic_calendars
-                ORDER BY
-                    datetime(updated_at) DESC,
-                    id DESC
-                """)
 
         return cursor.fetchall()
 
     finally:
+        cursor.close()
         conn.close()
 
 
@@ -945,20 +851,19 @@ def get_latest_calendar():
     conn = get_connection()
 
     try:
-        cursor = conn.cursor()
+        cursor = conn.cursor(dictionary=True)
 
         cursor.execute("""
             SELECT *
             FROM academic_calendars
-            ORDER BY
-                datetime(updated_at) DESC,
-                id DESC
+            ORDER BY updated_at DESC, id DESC
             LIMIT 1
             """)
 
         return cursor.fetchone()
 
     finally:
+        cursor.close()
         conn.close()
 
 
@@ -973,7 +878,7 @@ def delete_calendar(
         cursor.execute(
             """
             DELETE FROM academic_calendars
-            WHERE id = ?
+            WHERE id = %s
             """,
             (calendar_id,),
         )
@@ -983,4 +888,5 @@ def delete_calendar(
         return cursor.rowcount > 0
 
     finally:
+        cursor.close()
         conn.close()

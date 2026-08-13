@@ -76,6 +76,56 @@ def get_grading_system_text():
     )
 
 
+def get_current_step_text(context):
+    current_step = context.user_data.get(
+        "cgpa_current_step",
+        "prev_credits",
+    )
+
+    data = context.user_data.get(
+        "cgpa_data",
+        {},
+    )
+
+    if current_step == "prev_credits":
+        return (
+            "Step 1: Enter your previously completed credits.\n\n"
+            "Example: <code>45</code>\n\n"
+            "If you are in your first semester, enter <code>0</code>."
+        )
+
+    if current_step == "prev_cgpa":
+        return "Step 2: Enter your current CGPA.\n\n" "Example: <code>3.42</code>"
+
+    if current_step == "course_count":
+        return "Step 3: How many courses are you taking this semester?"
+
+    if current_step == "course_credit":
+        course_number = data.get(
+            "current_course",
+            1,
+        )
+
+        return (
+            f"Course {course_number}:\n\n"
+            f"Enter the credit for Course {course_number}.\n\n"
+            "Example: <code>3</code>"
+        )
+
+    if current_step == "course_grade":
+        course_number = data.get(
+            "current_course",
+            1,
+        )
+
+        return f"Course {course_number}:\n\n" "Select the grade:"
+
+    return (
+        "Step 1: Enter your previously completed credits.\n\n"
+        "Example: <code>45</code>"
+    )
+
+
 async def cgpa_start(
     update: Update,
     context: ContextTypes.DEFAULT_TYPE,
@@ -99,9 +149,7 @@ async def cgpa_start(
     )
 
     await update.message.reply_text(
-        "Step 1: Enter your previously completed credits.\n\n"
-        "Example: <code>45</code>\n\n"
-        "If you are in your first semester, enter <code>0</code>.",
+        get_current_step_text(context),
         reply_markup=get_cgpa_keyboard(),
         parse_mode="HTML",
     )
@@ -119,61 +167,34 @@ async def cgpa_grading_callback(
         reply_markup=get_cgpa_keyboard(),
     )
 
+    await update.message.reply_text(
+        get_current_step_text(context),
+        reply_markup=(
+            get_cgpa_keyboard()
+            if context.user_data.get("cgpa_current_step") != "course_grade"
+            else get_grade_keyboard()
+        ),
+        parse_mode="HTML",
+    )
+
     current_step = context.user_data.get(
         "cgpa_current_step",
         "prev_credits",
     )
 
     if current_step == "prev_credits":
-        await update.message.reply_text(
-            "Step 1: Enter your previously completed credits.\n\n"
-            "Example: <code>45</code>\n\n"
-            "If you are in your first semester, enter <code>0</code>.",
-            reply_markup=get_cgpa_keyboard(),
-            parse_mode="HTML",
-        )
         return CGPA_PREV_CREDITS
 
     if current_step == "prev_cgpa":
-        await update.message.reply_text(
-            "Step 2: Enter your current CGPA.\n\n" "Example: <code>3.42</code>",
-            reply_markup=get_cgpa_keyboard(),
-            parse_mode="HTML",
-        )
         return CGPA_PREV_CGPA
 
     if current_step == "course_count":
-        await update.message.reply_text(
-            "Step 3: How many courses are you taking this semester?",
-            reply_markup=get_cgpa_keyboard(),
-        )
         return CGPA_COURSE_COUNT
 
     if current_step == "course_credit":
-        course_number = context.user_data["cgpa_data"].get(
-            "current_course",
-            1,
-        )
-
-        await update.message.reply_text(
-            f"Course {course_number}:\n\n"
-            f"Enter the credit for Course {course_number}.\n\n"
-            "Example: <code>3</code>",
-            reply_markup=get_cgpa_keyboard(),
-            parse_mode="HTML",
-        )
         return CGPA_COURSE_CREDIT
 
     if current_step == "course_grade":
-        course_number = context.user_data["cgpa_data"].get(
-            "current_course",
-            1,
-        )
-
-        await update.message.reply_text(
-            f"Course {course_number}:\n\n" "Select the grade:",
-            reply_markup=get_grade_keyboard(),
-        )
         return CGPA_COURSE_GRADE
 
     return CGPA_PREV_CREDITS
@@ -202,7 +223,6 @@ async def get_prev_credits(
 
     if credits == 0:
         context.user_data["cgpa_data"]["prev_cgpa"] = 0.0
-
         context.user_data["cgpa_current_step"] = "course_count"
 
         await update.message.reply_text(
@@ -269,9 +289,7 @@ async def get_course_count(
             raise ValueError
 
         context.user_data["cgpa_data"]["course_count"] = count
-
         context.user_data["cgpa_data"]["current_course"] = 1
-
         context.user_data["cgpa_data"]["courses"] = []
 
         context.user_data["cgpa_current_step"] = "course_credit"
@@ -306,7 +324,6 @@ async def get_course_credit(
             raise ValueError
 
         context.user_data["cgpa_data"]["temp_credit"] = credit
-
         context.user_data["cgpa_current_step"] = "course_grade"
 
     except ValueError:
@@ -345,9 +362,7 @@ async def get_course_grade(
     data = context.user_data["cgpa_data"]
 
     credit = data["temp_credit"]
-
     current_course = data["current_course"]
-
     course_count = data["course_count"]
 
     data["courses"].append(
@@ -358,11 +373,15 @@ async def get_course_grade(
         }
     )
 
+    data.pop(
+        "temp_credit",
+        None,
+    )
+
     if current_course < course_count:
         next_course = current_course + 1
 
         data["current_course"] = next_course
-
         context.user_data["cgpa_current_step"] = "course_credit"
 
         await update.message.reply_text(
@@ -381,20 +400,34 @@ async def get_course_grade(
     )
 
 
+async def cgpa_new_calc(
+    update: Update,
+    context: ContextTypes.DEFAULT_TYPE,
+):
+    return await cgpa_start(
+        update,
+        context,
+    )
+
+
 async def calculate_final_cgpa(
     update: Update,
     context: ContextTypes.DEFAULT_TYPE,
 ):
     data = context.user_data["cgpa_data"]
 
-    previous_credits = data.get(
-        "prev_credits",
-        0.0,
+    previous_credits = float(
+        data.get(
+            "prev_credits",
+            0.0,
+        )
     )
 
-    previous_cgpa = data.get(
-        "prev_cgpa",
-        0.0,
+    previous_cgpa = float(
+        data.get(
+            "prev_cgpa",
+            0.0,
+        )
     )
 
     courses = data.get(
@@ -419,7 +452,6 @@ async def calculate_final_cgpa(
         )
 
         semester_credits += credit
-
         semester_quality_points += credit * grade_point
 
     if semester_credits > 0:

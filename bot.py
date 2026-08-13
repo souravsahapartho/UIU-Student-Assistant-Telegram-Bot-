@@ -5,7 +5,11 @@ from contextlib import asynccontextmanager
 
 from fastapi import FastAPI, HTTPException, Request
 
-from telegram import Update, InlineKeyboardButton, InlineKeyboardMarkup
+from telegram import (
+    Update,
+    InlineKeyboardButton,
+    InlineKeyboardMarkup,
+)
 
 from telegram.ext import (
     Application,
@@ -27,6 +31,7 @@ from database import (
 )
 
 from states import (
+    CGPA_MENU_CHOICE,
     CGPA_PREV_CREDITS,
     CGPA_PREV_CGPA,
     CGPA_COURSE_COUNT,
@@ -40,6 +45,12 @@ from states import (
     FEE_RETAKE_CREDITS,
     FEE_DISCOUNT_TYPE,
     FEE_DISCOUNT_PERCENT,
+    SCHOLARSHIP_GPA,
+    SCHOLARSHIP_PROGRAM,
+    SCHOLARSHIP_SIZE,
+    SCHOLARSHIP_CREDITS,
+    SCHOLARSHIP_HIGHER_CHOICE,
+    SCHOLARSHIP_HIGHER_COUNT,
 )
 
 from handlers.general import (
@@ -50,8 +61,6 @@ from handlers.general import (
     handle_cancel,
     academic_info,
     academic_info_callback,
-    academic_info_menu_handler,
-    academic_info_main_menu,
     settings_menu,
     settings_callback,
     notices,
@@ -59,13 +68,13 @@ from handlers.general import (
 
 from handlers.cgpa import (
     cgpa_start,
+    cgpa_new_calc,
     get_prev_credits,
     get_prev_cgpa,
     get_course_count,
     get_course_credit,
     get_course_grade,
     cgpa_cancel,
-    cgpa_grading_callback,
 )
 
 from handlers.fee import (
@@ -94,12 +103,6 @@ from handlers.scholarship import (
     scholarship_higher_count,
     scholarship_cancel,
     scholarship_callback,
-    SCHOLARSHIP_GPA,
-    SCHOLARSHIP_PROGRAM,
-    SCHOLARSHIP_SIZE,
-    SCHOLARSHIP_CREDITS,
-    SCHOLARSHIP_HIGHER_CHOICE,
-    SCHOLARSHIP_HIGHER_COUNT,
 )
 
 from services.calendar_service import sync_calendars
@@ -112,7 +115,11 @@ logging.basicConfig(
 logger = logging.getLogger(__name__)
 
 WEBHOOK_PATH = "/telegram/webhook"
-WEBHOOK_SECRET = os.getenv("WEBHOOK_SECRET", "")
+
+WEBHOOK_SECRET = os.getenv(
+    "WEBHOOK_SECRET",
+    "",
+)
 
 telegram_app = Application.builder().token(Config.BOT_TOKEN).build()
 
@@ -278,65 +285,41 @@ def setup_handlers():
             )
         ],
         states={
+            CGPA_MENU_CHOICE: [
+                MessageHandler(
+                    filters.Regex(r"^➕ New Calculation$"),
+                    cgpa_new_calc,
+                )
+            ],
             CGPA_PREV_CREDITS: [
                 MessageHandler(
-                    filters.Regex(r"^📚 Grading System$"),
-                    cgpa_grading_callback,
-                ),
-                MessageHandler(
-                    filters.TEXT
-                    & ~filters.COMMAND
-                    & ~filters.Regex(r"^(❌ Cancel|📚 Grading System)$"),
+                    filters.TEXT & ~filters.COMMAND & ~filters.Regex(r"^❌ Cancel$"),
                     get_prev_credits,
-                ),
+                )
             ],
             CGPA_PREV_CGPA: [
                 MessageHandler(
-                    filters.Regex(r"^📚 Grading System$"),
-                    cgpa_grading_callback,
-                ),
-                MessageHandler(
-                    filters.TEXT
-                    & ~filters.COMMAND
-                    & ~filters.Regex(r"^(❌ Cancel|📚 Grading System)$"),
+                    filters.TEXT & ~filters.COMMAND & ~filters.Regex(r"^❌ Cancel$"),
                     get_prev_cgpa,
-                ),
+                )
             ],
             CGPA_COURSE_COUNT: [
                 MessageHandler(
-                    filters.Regex(r"^📚 Grading System$"),
-                    cgpa_grading_callback,
-                ),
-                MessageHandler(
-                    filters.TEXT
-                    & ~filters.COMMAND
-                    & ~filters.Regex(r"^(❌ Cancel|📚 Grading System)$"),
+                    filters.TEXT & ~filters.COMMAND & ~filters.Regex(r"^❌ Cancel$"),
                     get_course_count,
-                ),
+                )
             ],
             CGPA_COURSE_CREDIT: [
                 MessageHandler(
-                    filters.Regex(r"^📚 Grading System$"),
-                    cgpa_grading_callback,
-                ),
-                MessageHandler(
-                    filters.TEXT
-                    & ~filters.COMMAND
-                    & ~filters.Regex(r"^(❌ Cancel|📚 Grading System)$"),
+                    filters.TEXT & ~filters.COMMAND & ~filters.Regex(r"^❌ Cancel$"),
                     get_course_credit,
-                ),
+                )
             ],
             CGPA_COURSE_GRADE: [
                 MessageHandler(
-                    filters.Regex(r"^📚 Grading System$"),
-                    cgpa_grading_callback,
-                ),
-                MessageHandler(
-                    filters.TEXT
-                    & ~filters.COMMAND
-                    & ~filters.Regex(r"^(❌ Cancel|📚 Grading System)$"),
+                    filters.TEXT & ~filters.COMMAND & ~filters.Regex(r"^❌ Cancel$"),
                     get_course_grade,
-                ),
+                )
             ],
         },
         fallbacks=[
@@ -431,7 +414,11 @@ def setup_handlers():
             MessageHandler(
                 filters.Regex(r"^🎁 Scholarship Calculator$"),
                 scholarship_start,
-            )
+            ),
+            CallbackQueryHandler(
+                scholarship_callback,
+                pattern=r"^scholarship_again$",
+            ),
         ],
         states={
             SCHOLARSHIP_GPA: [
@@ -546,22 +533,6 @@ def setup_handlers():
 
     telegram_app.add_handler(
         MessageHandler(
-            filters.Regex(
-                r"^(🎓 Admission|📝 Registration|📊 Credit System|🔄 Retake Rules|🎯 Graduation|📚 Grading System)$"
-            ),
-            academic_info_menu_handler,
-        )
-    )
-
-    telegram_app.add_handler(
-        MessageHandler(
-            filters.Regex(r"^⬅️ Main Menu$"),
-            academic_info_main_menu,
-        )
-    )
-
-    telegram_app.add_handler(
-        MessageHandler(
             filters.Regex(r"^🔗 Important Links$"),
             show_links,
         )
@@ -626,7 +597,7 @@ def setup_handlers():
     telegram_app.add_handler(
         CallbackQueryHandler(
             scholarship_callback,
-            pattern=r"^scholarship_",
+            pattern=r"^scholarship_(rules|back|main_menu)$",
         )
     )
 
@@ -640,19 +611,23 @@ async def error_handler(
         exc_info=context.error,
     )
 
-    if (
-        isinstance(
-            update,
-            Update,
-        )
-        and update.message
+    if isinstance(
+        update,
+        Update,
     ):
-        try:
-            await update.message.reply_text(
-                "⚠️ Something went wrong. Please try again."
-            )
-        except Exception:
-            pass
+        message = getattr(
+            update,
+            "message",
+            None,
+        )
+
+        if message:
+            try:
+                await message.reply_text(
+                    "⚠️ Something went wrong. " "Please try again."
+                )
+            except Exception:
+                pass
 
 
 @asynccontextmanager
@@ -683,37 +658,40 @@ async def lifespan(
 
     render_url = os.getenv("RENDER_EXTERNAL_URL")
 
-    if not render_url:
-        raise RuntimeError("RENDER_EXTERNAL_URL is not available.")
+    is_render = bool(render_url)
 
-    webhook_url = render_url.rstrip("/") + WEBHOOK_PATH
+    if is_render:
+        webhook_url = render_url.rstrip("/") + WEBHOOK_PATH
 
-    webhook_args = {
-        "url": webhook_url,
-        "drop_pending_updates": True,
-    }
+        webhook_args = {
+            "url": webhook_url,
+            "drop_pending_updates": True,
+        }
 
-    if WEBHOOK_SECRET:
-        webhook_args["secret_token"] = WEBHOOK_SECRET
+        if WEBHOOK_SECRET:
+            webhook_args["secret_token"] = WEBHOOK_SECRET
 
-    await telegram_app.bot.set_webhook(**webhook_args)
+        await telegram_app.bot.set_webhook(**webhook_args)
 
-    logger.info(
-        "Webhook configured: %s",
-        webhook_url,
-    )
+        logger.info(
+            "Webhook configured: %s",
+            webhook_url,
+        )
+    else:
+        logger.info("Local mode detected. Webhook configuration skipped.")
 
     logger.info("UIU Smart Assistant is running.")
 
     yield
 
-    try:
-        await telegram_app.bot.delete_webhook()
-    except Exception as error:
-        logger.warning(
-            "Webhook delete failed: %s",
-            error,
-        )
+    if is_render:
+        try:
+            await telegram_app.bot.delete_webhook()
+        except Exception as error:
+            logger.warning(
+                "Webhook delete failed: %s",
+                error,
+            )
 
     try:
         await telegram_app.stop()
