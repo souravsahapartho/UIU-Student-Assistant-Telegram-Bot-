@@ -629,15 +629,17 @@ async def health():
 
 
 @app.post(WEBHOOK_PATH)
-async def telegram_webhook(
-    request: Request,
-):
+async def telegram_webhook(request: Request):
+
+    logger.info("=== TELEGRAM WEBHOOK RECEIVED ===")
 
     if WEBHOOK_SECRET:
 
         received_secret = request.headers.get("X-Telegram-Bot-Api-Secret-Token")
 
         if received_secret != WEBHOOK_SECRET:
+
+            logger.error("Invalid Telegram webhook secret")
 
             raise HTTPException(
                 status_code=403,
@@ -648,19 +650,30 @@ async def telegram_webhook(
 
         data = await request.json()
 
+        logger.info(
+            "Telegram update received: %s",
+            data.get("update_id"),
+        )
+
         update = Update.de_json(
             data,
             telegram_app.bot,
         )
 
-        asyncio.create_task(telegram_app.process_update(update))
+        if update:
+
+            logger.info("Processing Telegram update...")
+
+            await telegram_app.process_update(update)
+
+            logger.info("Telegram update processed successfully")
 
         return {"ok": True}
 
     except Exception as error:
 
         logger.error(
-            "Webhook processing error: %s",
+            "Telegram webhook error: %s",
             error,
             exc_info=True,
         )
