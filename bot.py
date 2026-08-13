@@ -3,11 +3,7 @@ import logging
 import os
 from contextlib import asynccontextmanager
 
-from fastapi import (
-    FastAPI,
-    Request,
-    HTTPException,
-)
+from fastapi import FastAPI, HTTPException, Request
 
 from telegram import (
     Update,
@@ -17,11 +13,11 @@ from telegram import (
 
 from telegram.ext import (
     Application,
-    CommandHandler,
-    MessageHandler,
-    ConversationHandler,
-    ContextTypes,
     CallbackQueryHandler,
+    CommandHandler,
+    ContextTypes,
+    ConversationHandler,
+    MessageHandler,
     filters,
 )
 
@@ -35,6 +31,7 @@ from database import (
 )
 
 from states import (
+    CGPA_MENU_CHOICE,
     CGPA_PREV_CREDITS,
     CGPA_PREV_CGPA,
     CGPA_COURSE_COUNT,
@@ -59,6 +56,8 @@ from handlers.general import (
     show_not_implemented,
     academic_info,
     academic_info_callback,
+    academic_info_menu_handler,
+    academic_info_main_menu,
     settings_menu,
     settings_callback,
     notices,
@@ -66,13 +65,14 @@ from handlers.general import (
 
 from handlers.cgpa import (
     cgpa_start,
-    cgpa_grading_callback,
+    cgpa_new_calc,
     get_prev_credits,
     get_prev_cgpa,
     get_course_count,
     get_course_credit,
     get_course_grade,
     cgpa_cancel,
+    cgpa_grading_callback,
 )
 
 from handlers.fee import (
@@ -89,13 +89,12 @@ from handlers.fee import (
 )
 
 from handlers.calendar import academic_calendar
-
 from handlers.admin import admin_panel
 
 from services.calendar_service import sync_calendars
 
 logging.basicConfig(
-    format=("%(asctime)s - %(name)s - " "%(levelname)s - %(message)s"),
+    format="%(asctime)s - %(name)s - %(levelname)s - %(message)s",
     level=logging.INFO,
 )
 
@@ -181,7 +180,7 @@ async def send_calendar_notifications(
         text = (
             "🔄 <b>Academic Calendar Updated</b>\n\n"
             f"📅 {title}\n\n"
-            "UIU has updated or revised this academic calendar."
+            "UIU has updated this academic calendar."
         )
 
         keyboard = []
@@ -272,48 +271,81 @@ def setup_handlers():
             )
         ],
         states={
+            CGPA_MENU_CHOICE: [
+                MessageHandler(
+                    filters.Regex(r"^➕ New Calculation$"),
+                    cgpa_new_calc,
+                ),
+                MessageHandler(
+                    filters.Regex(r"^📚 Grading System$"),
+                    cgpa_grading_callback,
+                ),
+            ],
             CGPA_PREV_CREDITS: [
+                MessageHandler(
+                    filters.Regex(r"^📚 Grading System$"),
+                    cgpa_grading_callback,
+                ),
                 MessageHandler(
                     filters.TEXT
                     & ~filters.COMMAND
-                    & ~filters.Regex(r"^❌ Cancel$")
-                    & ~filters.Regex(r"^📚 Grading System$"),
+                    & ~filters.Regex(r"^(❌ Cancel|📚 Grading System)$"),
                     get_prev_credits,
-                )
+                ),
             ],
             CGPA_PREV_CGPA: [
                 MessageHandler(
-                    filters.TEXT & ~filters.COMMAND & ~filters.Regex(r"^❌ Cancel$"),
+                    filters.Regex(r"^📚 Grading System$"),
+                    cgpa_grading_callback,
+                ),
+                MessageHandler(
+                    filters.TEXT
+                    & ~filters.COMMAND
+                    & ~filters.Regex(r"^(❌ Cancel|📚 Grading System)$"),
                     get_prev_cgpa,
-                )
+                ),
             ],
             CGPA_COURSE_COUNT: [
                 MessageHandler(
-                    filters.TEXT & ~filters.COMMAND & ~filters.Regex(r"^❌ Cancel$"),
+                    filters.Regex(r"^📚 Grading System$"),
+                    cgpa_grading_callback,
+                ),
+                MessageHandler(
+                    filters.TEXT
+                    & ~filters.COMMAND
+                    & ~filters.Regex(r"^(❌ Cancel|📚 Grading System)$"),
                     get_course_count,
-                )
+                ),
             ],
             CGPA_COURSE_CREDIT: [
                 MessageHandler(
-                    filters.TEXT & ~filters.COMMAND & ~filters.Regex(r"^❌ Cancel$"),
+                    filters.Regex(r"^📚 Grading System$"),
+                    cgpa_grading_callback,
+                ),
+                MessageHandler(
+                    filters.TEXT
+                    & ~filters.COMMAND
+                    & ~filters.Regex(r"^(❌ Cancel|📚 Grading System)$"),
                     get_course_credit,
-                )
+                ),
             ],
             CGPA_COURSE_GRADE: [
                 MessageHandler(
-                    filters.TEXT & ~filters.COMMAND & ~filters.Regex(r"^❌ Cancel$"),
+                    filters.Regex(r"^📚 Grading System$"),
+                    cgpa_grading_callback,
+                ),
+                MessageHandler(
+                    filters.TEXT
+                    & ~filters.COMMAND
+                    & ~filters.Regex(r"^(❌ Cancel|📚 Grading System)$"),
                     get_course_grade,
-                )
+                ),
             ],
         },
         fallbacks=[
             MessageHandler(
                 filters.Regex(r"^❌ Cancel$"),
                 cgpa_cancel,
-            ),
-            MessageHandler(
-                filters.Regex(r"^📚 Grading System$"),
-                cgpa_grading_callback,
             ),
             CommandHandler(
                 "cancel",
@@ -431,6 +463,22 @@ def setup_handlers():
 
     telegram_app.add_handler(
         MessageHandler(
+            filters.Regex(
+                r"^(🎓 Admission|📝 Registration|📊 Credit System|🔄 Retake Rules|🎯 Graduation|📚 Grading System)$"
+            ),
+            academic_info_menu_handler,
+        )
+    )
+
+    telegram_app.add_handler(
+        MessageHandler(
+            filters.Regex(r"^⬅️ Main Menu$"),
+            academic_info_main_menu,
+        )
+    )
+
+    telegram_app.add_handler(
+        MessageHandler(
             filters.Regex(r"^🔗 Important Links$"),
             show_links,
         )
@@ -473,6 +521,13 @@ def setup_handlers():
 
     telegram_app.add_handler(
         MessageHandler(
+            filters.Regex(r"^❌ Cancel$"),
+            handle_cancel,
+        )
+    )
+
+    telegram_app.add_handler(
+        MessageHandler(
             filters.Regex(r"^🎁 Scholarship Calculator$"),
             show_not_implemented,
         )
@@ -498,9 +553,23 @@ async def error_handler(
     context: ContextTypes.DEFAULT_TYPE,
 ):
     logger.error(
-        "Telegram update error:",
+        "Telegram update error",
         exc_info=context.error,
     )
+
+    if (
+        isinstance(
+            update,
+            Update,
+        )
+        and update.message
+    ):
+        try:
+            await update.message.reply_text(
+                "⚠️ Something went wrong. Please try again."
+            )
+        except Exception:
+            pass
 
 
 @asynccontextmanager
@@ -557,18 +626,27 @@ async def lifespan(
 
     try:
         await telegram_app.bot.delete_webhook()
-    except Exception:
-        pass
+    except Exception as error:
+        logger.warning(
+            "Webhook delete failed: %s",
+            error,
+        )
 
     try:
         await telegram_app.stop()
-    except Exception:
-        pass
+    except Exception as error:
+        logger.warning(
+            "Telegram application stop failed: %s",
+            error,
+        )
 
     try:
         await telegram_app.shutdown()
-    except Exception:
-        pass
+    except Exception as error:
+        logger.warning(
+            "Telegram application shutdown failed: %s",
+            error,
+        )
 
 
 app = FastAPI(
@@ -590,7 +668,7 @@ async def health():
     return {
         "status": "ok",
         "telegram": "webhook",
-        "calendar_checker": "active",
+        "academic_calendar": "active",
     }
 
 
@@ -615,14 +693,14 @@ async def telegram_webhook(
             telegram_app.bot,
         )
 
-        if update:
+        if update is not None:
             asyncio.create_task(telegram_app.process_update(update))
 
         return {"ok": True}
 
     except Exception as error:
         logger.error(
-            "Telegram webhook error: %s",
+            "Webhook processing error: %s",
             error,
             exc_info=True,
         )
