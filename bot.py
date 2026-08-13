@@ -14,6 +14,7 @@ from telegram.ext import (
 
 from config import Config
 from database import init_db
+
 from states import (
     CGPA_MENU_CHOICE,
     CGPA_PREV_CREDITS,
@@ -28,9 +29,6 @@ from states import (
     FEE_RETAKE_CREDITS,
     FEE_DISCOUNT_TYPE,
     FEE_DISCOUNT_PERCENT,
-    ADMIN_MENU,
-    ADMIN_SETTING_EDIT,
-    ADMIN_BROADCAST_MESSAGE,
 )
 
 from handlers.general import (
@@ -41,11 +39,9 @@ from handlers.general import (
     handle_cancel,
     show_not_implemented,
     academic_info,
-    academic_info_callback,
     academic_calendar,
     notices,
     settings_menu,
-    settings_callback,
 )
 
 from handlers.cgpa import (
@@ -71,11 +67,7 @@ from handlers.fee import (
     fee_cancel,
 )
 
-from handlers.admin import (
-    admin_panel,
-    admin_broadcast,
-    broadcast_message,
-)
+from handlers.admin import admin_panel
 
 logging.basicConfig(
     format="%(asctime)s - %(name)s - %(levelname)s - %(message)s",
@@ -88,26 +80,24 @@ logger = logging.getLogger(__name__)
 async def error_handler(
     update: object,
     context: ContextTypes.DEFAULT_TYPE,
-) -> None:
+):
     logger.error(
         "Exception while handling an update:",
         exc_info=context.error,
     )
 
     if isinstance(update, Update) and update.message:
-        await update.message.reply_text(
-            "⚠ Something went wrong. Please try again or type /start to restart."
-        )
+        try:
+            await update.message.reply_text(
+                "⚠️ Something went wrong. Please try again."
+            )
+        except Exception:
+            pass
 
 
 def main():
     if sys.platform == "win32":
         asyncio.set_event_loop_policy(asyncio.WindowsSelectorEventLoopPolicy())
-
-    try:
-        asyncio.get_event_loop()
-    except RuntimeError:
-        asyncio.set_event_loop(asyncio.new_event_loop())
 
     Config.validate()
     init_db()
@@ -117,7 +107,7 @@ def main():
     cgpa_conv_handler = ConversationHandler(
         entry_points=[
             MessageHandler(
-                filters.Regex("^🎓 CGPA Calculator$"),
+                filters.Regex("^📚 CGPA Calculator$"),
                 cgpa_start,
             )
         ],
@@ -130,31 +120,31 @@ def main():
             ],
             CGPA_PREV_CREDITS: [
                 MessageHandler(
-                    filters.TEXT & ~filters.COMMAND & ~filters.Regex("^❌ Cancel$"),
+                    filters.Regex(r"^\d+(?:\.\d+)?$"),
                     get_prev_credits,
                 )
             ],
             CGPA_PREV_CGPA: [
                 MessageHandler(
-                    filters.TEXT & ~filters.COMMAND & ~filters.Regex("^❌ Cancel$"),
+                    filters.Regex(r"^\d+(?:\.\d+)?$"),
                     get_prev_cgpa,
                 )
             ],
             CGPA_COURSE_COUNT: [
                 MessageHandler(
-                    filters.TEXT & ~filters.COMMAND & ~filters.Regex("^❌ Cancel$"),
+                    filters.Regex(r"^\d+$"),
                     get_course_count,
                 )
             ],
             CGPA_COURSE_CREDIT: [
                 MessageHandler(
-                    filters.TEXT & ~filters.COMMAND & ~filters.Regex("^❌ Cancel$"),
+                    filters.Regex(r"^\d+(?:\.\d+)?$"),
                     get_course_credit,
                 )
             ],
             CGPA_COURSE_GRADE: [
                 MessageHandler(
-                    filters.TEXT & ~filters.COMMAND & ~filters.Regex("^❌ Cancel$"),
+                    filters.Regex(r"^(A|A-|B\+|B|B-|C\+|C|C-|D\+|D|F)$"),
                     get_course_grade,
                 )
             ],
@@ -170,6 +160,7 @@ def main():
             ),
         ],
         per_user=True,
+        allow_reentry=True,
     )
 
     fee_conv_handler = ConversationHandler(
@@ -182,43 +173,43 @@ def main():
         states={
             FEE_CREDIT_FEE: [
                 MessageHandler(
-                    filters.TEXT & ~filters.COMMAND & ~filters.Regex("^❌ Cancel$"),
+                    filters.Regex(r"^\d+(?:\.\d+)?$"),
                     get_credit_fee,
                 )
             ],
             FEE_TRIMESTER_FEE: [
                 MessageHandler(
-                    filters.TEXT & ~filters.COMMAND & ~filters.Regex("^❌ Cancel$"),
+                    filters.Regex(r"^\d+(?:\.\d+)?$"),
                     get_trimester_fee,
                 )
             ],
             FEE_REG_CREDITS: [
                 MessageHandler(
-                    filters.TEXT & ~filters.COMMAND & ~filters.Regex("^❌ Cancel$"),
+                    filters.Regex(r"^\d+(?:\.\d+)?$"),
                     get_reg_credits,
                 )
             ],
             FEE_RETAKE_COUNT: [
                 MessageHandler(
-                    filters.TEXT & ~filters.COMMAND & ~filters.Regex("^❌ Cancel$"),
+                    filters.Regex(r"^\d+$"),
                     get_retake_count,
                 )
             ],
             FEE_RETAKE_CREDITS: [
                 MessageHandler(
-                    filters.TEXT & ~filters.COMMAND & ~filters.Regex("^❌ Cancel$"),
+                    filters.Regex(r"^\d+(?:\.\d+)?$"),
                     get_retake_credits,
                 )
             ],
             FEE_DISCOUNT_TYPE: [
                 MessageHandler(
-                    filters.TEXT & ~filters.COMMAND & ~filters.Regex("^❌ Cancel$"),
+                    filters.Regex(r"^(🎓 Scholarship|💯 Waiver|❌ No Discount)$"),
                     get_discount_type,
                 )
             ],
             FEE_DISCOUNT_PERCENT: [
                 MessageHandler(
-                    filters.TEXT & ~filters.COMMAND & ~filters.Regex("^❌ Cancel$"),
+                    filters.Regex(r"^\d+(?:\.\d+)?$"),
                     get_discount_percent,
                 )
             ],
@@ -234,6 +225,7 @@ def main():
             ),
         ],
         per_user=True,
+        allow_reentry=True,
     )
 
     app.add_handler(
@@ -283,7 +275,7 @@ def main():
 
     app.add_handler(
         MessageHandler(
-            filters.Regex("^📖 Academic Information$"),
+            filters.Regex("^📖 Academic Info$"),
             academic_info,
         )
     )
@@ -311,29 +303,15 @@ def main():
 
     app.add_handler(
         MessageHandler(
-            filters.Regex("^❌ Cancel$"),
-            handle_cancel,
-        )
-    )
-
-    app.add_handler(
-        MessageHandler(
-            filters.Regex("^(🎁 Scholarship Calculator|📚 Academic Info)$"),
+            filters.Regex("^(🎁 Scholarship Calculator)$"),
             show_not_implemented,
         )
     )
 
     app.add_handler(
-        CallbackQueryHandler(
-            academic_info_callback,
-            pattern="^acad_",
-        )
-    )
-
-    app.add_handler(
-        CallbackQueryHandler(
-            settings_callback,
-            pattern="^toggle_alerts$",
+        MessageHandler(
+            filters.Regex("^❌ Cancel$"),
+            handle_cancel,
         )
     )
 
