@@ -5,7 +5,6 @@ from telegram import (
     Update,
     InlineKeyboardMarkup,
     InlineKeyboardButton,
-    ReplyKeyboardRemove,
 )
 
 from telegram.ext import ContextTypes
@@ -458,7 +457,7 @@ async def academic_admission(
     context: ContextTypes.DEFAULT_TYPE,
 ):
     await update.message.reply_text(
-        "🎓 Admission\n\n" "Open the official UIU admission page:",
+        "🎓 <b>Admission</b>\n\n" "Open the official UIU admission page:",
         reply_markup=InlineKeyboardMarkup(
             [
                 [
@@ -469,6 +468,7 @@ async def academic_admission(
                 ]
             ]
         ),
+        parse_mode="HTML",
     )
 
 
@@ -477,7 +477,7 @@ async def academic_graduation(
     context: ContextTypes.DEFAULT_TYPE,
 ):
     await update.message.reply_text(
-        "🎯 Graduation\n\n" "Open the official UIU Convocation page:",
+        "🎯 <b>Graduation</b>\n\n" "Open the official UIU Convocation page:",
         reply_markup=InlineKeyboardMarkup(
             [
                 [
@@ -488,6 +488,7 @@ async def academic_graduation(
                 ]
             ]
         ),
+        parse_mode="HTML",
     )
 
 
@@ -506,11 +507,20 @@ async def academic_registration(
     update: Update,
     context: ContextTypes.DEFAULT_TYPE,
 ):
+    text = (
+        "📝 <b>UIU Course Registration</b>\n\n"
+        "Choose your preferred registration portal:\n\n"
+        "🌐 <b>UCam Cloud</b>\n"
+        "https://uiu.ucamcloud.com/\n\n"
+        "🔐 <b>UCam — UIU</b>\n"
+        "https://ucam.uiu.ac.bd/Security/LogIn.aspx\n\n"
+        "📌 Use your UIU credentials to log in and access "
+        "course registration and related academic services."
+    )
+
     await update.message.reply_text(
-        "📝 **Registration**\n\n"
-        "Course registration information and deadlines "
-        "should be verified through UCAM and official UIU announcements.",
-        parse_mode="Markdown",
+        text,
+        parse_mode="HTML",
         reply_markup=get_academic_info_menu(),
     )
 
@@ -519,11 +529,32 @@ async def academic_credit(
     update: Update,
     context: ContextTypes.DEFAULT_TYPE,
 ):
+    text = (
+        "🎓 <b>UIU Credit System</b>\n\n"
+        "The <b>United International University (UIU)</b> "
+        "follows a credit-hour-based academic system.\n\n"
+        "📚 <b>Credit Hour</b>\n\n"
+        "• <b>Theory Course:</b>\n"
+        "  Typically 3 credits\n\n"
+        "• <b>Laboratory Course:</b>\n"
+        "  Typically 1–2 credits\n\n"
+        "• <b>Project/Thesis:</b>\n"
+        "  Credits vary depending on the program and curriculum\n\n"
+        "📊 <b>Degree Completion</b>\n\n"
+        "Students must complete all required courses and the "
+        "<b>total credits specified by their respective program "
+        "curriculum</b> to fulfill the requirements for graduation.\n\n"
+        "📌 <b>Important</b>\n\n"
+        "Course credits, prerequisites, and total degree "
+        "requirements may vary by <b>department, program, and "
+        "curriculum revision</b>.\n\n"
+        "Students should always refer to the latest official "
+        "UIU curriculum for accurate information."
+    )
+
     await update.message.reply_text(
-        "📊 **Credit System**\n\n"
-        "Credit requirements depend on the academic program. "
-        "Check your department's official curriculum.",
-        parse_mode="Markdown",
+        text,
+        parse_mode="HTML",
         reply_markup=get_academic_info_menu(),
     )
 
@@ -532,11 +563,32 @@ async def academic_retake(
     update: Update,
     context: ContextTypes.DEFAULT_TYPE,
 ):
+    text = (
+        "🔄 <b>UIU Retake Course Policy</b>\n\n"
+        "Students at <b>United International University (UIU)</b> "
+        "may retake a course according to the university's "
+        "academic regulations.\n\n"
+        "💰 <b>First-Time Retake Discount</b>\n\n"
+        "Students receive a <b>50% tuition fee discount</b> "
+        "when retaking a course <b>for the first time</b>.\n\n"
+        "📌 <b>Key Points</b>\n\n"
+        "• 🎓 The <b>first retake</b> is eligible for a "
+        "<b>50% discount</b> for all students.\n\n"
+        "• 🔄 The course must be registered again in a "
+        "subsequent semester.\n\n"
+        "• 📊 Retaking a course may affect the student's "
+        "<b>CGPA</b> according to the applicable grading policy.\n\n"
+        "• 📝 The retake attempt will be recorded in the "
+        "student's academic record.\n\n"
+        "• ⚠️ The applicable rules and fees should be verified "
+        "with the latest UIU academic regulations before registration.\n\n"
+        "💡 <b>Tip:</b> Check your course eligibility and "
+        "retake fee before completing your registration."
+    )
+
     await update.message.reply_text(
-        "🔄 **Retake Rules**\n\n"
-        "Retake and improvement policies may change. "
-        "Please verify the current policy through official UIU sources.",
-        parse_mode="Markdown",
+        text,
+        parse_mode="HTML",
         reply_markup=get_academic_info_menu(),
     )
 
@@ -549,20 +601,6 @@ async def academic_info_menu_handler(
 
     if text == "🎓 Admission":
         await academic_admission(
-            update,
-            context,
-        )
-        return
-
-    if text == "🎯 Graduation":
-        await academic_graduation(
-            update,
-            context,
-        )
-        return
-
-    if text == "📚 Grading System":
-        await academic_grading(
             update,
             context,
         )
@@ -584,6 +622,20 @@ async def academic_info_menu_handler(
 
     if text == "🔄 Retake Rules":
         await academic_retake(
+            update,
+            context,
+        )
+        return
+
+    if text == "🎯 Graduation":
+        await academic_graduation(
+            update,
+            context,
+        )
+        return
+
+    if text == "📚 Grading System":
+        await academic_grading(
             update,
             context,
         )
