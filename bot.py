@@ -59,6 +59,7 @@ from handlers.general import (
     show_about,
     show_help,
     handle_cancel,
+    show_not_implemented,
     academic_info,
     academic_info_callback,
     settings_menu,
@@ -323,12 +324,12 @@ def setup_handlers():
             ],
         },
         fallbacks=[
-            MessageHandler(
-                filters.Regex(r"^❌ Cancel$"),
-                cgpa_cancel,
-            ),
             CommandHandler(
                 "cancel",
+                cgpa_cancel,
+            ),
+            MessageHandler(
+                filters.Regex(r"^❌ Cancel$"),
                 cgpa_cancel,
             ),
         ],
@@ -623,9 +624,7 @@ async def error_handler(
 
         if message:
             try:
-                await message.reply_text(
-                    "⚠️ Something went wrong. " "Please try again."
-                )
+                await message.reply_text("⚠️ Something went wrong. Please try again.")
             except Exception:
                 pass
 
@@ -655,17 +654,17 @@ async def lifespan(
         )
 
         logger.info("Academic calendar checker started.")
+    else:
+        logger.warning("JobQueue is unavailable.")
 
     render_url = os.getenv("RENDER_EXTERNAL_URL")
 
-    is_render = bool(render_url)
-
-    if is_render:
+    if render_url:
         webhook_url = render_url.rstrip("/") + WEBHOOK_PATH
 
         webhook_args = {
             "url": webhook_url,
-            "drop_pending_updates": True,
+            "drop_pending_updates": False,
         }
 
         if WEBHOOK_SECRET:
@@ -680,38 +679,30 @@ async def lifespan(
     else:
         logger.info("Local mode detected. Webhook configuration skipped.")
 
-    logger.info("UIU Smart Assistant is running.")
+    logger.info("UIU Student Assistant is running.")
 
-    yield
-
-    if is_render:
+    try:
+        yield
+    finally:
         try:
-            await telegram_app.bot.delete_webhook()
+            await telegram_app.stop()
         except Exception as error:
             logger.warning(
-                "Webhook delete failed: %s",
+                "Telegram application stop failed: %s",
                 error,
             )
 
-    try:
-        await telegram_app.stop()
-    except Exception as error:
-        logger.warning(
-            "Telegram application stop failed: %s",
-            error,
-        )
-
-    try:
-        await telegram_app.shutdown()
-    except Exception as error:
-        logger.warning(
-            "Telegram application shutdown failed: %s",
-            error,
-        )
+        try:
+            await telegram_app.shutdown()
+        except Exception as error:
+            logger.warning(
+                "Telegram application shutdown failed: %s",
+                error,
+            )
 
 
 app = FastAPI(
-    title="UIU Smart Assistant",
+    title="UIU Student Assistant",
     lifespan=lifespan,
 )
 
@@ -720,7 +711,7 @@ app = FastAPI(
 async def root():
     return {
         "status": "online",
-        "service": "UIU Smart Assistant",
+        "service": "UIU Student Assistant",
     }
 
 
@@ -733,6 +724,11 @@ async def health():
     }
 
 
+@app.head("/health")
+async def health_head():
+    return None
+
+
 @app.post(WEBHOOK_PATH)
 async def telegram_webhook(
     request: Request,
@@ -741,6 +737,8 @@ async def telegram_webhook(
         received_secret = request.headers.get("X-Telegram-Bot-Api-Secret-Token")
 
         if received_secret != WEBHOOK_SECRET:
+            logger.warning("Invalid Telegram webhook secret.")
+
             raise HTTPException(
                 status_code=403,
                 detail="Invalid webhook secret",
@@ -748,6 +746,13 @@ async def telegram_webhook(
 
     try:
         data = await request.json()
+
+        update_id = data.get("update_id")
+
+        logger.info(
+            "Telegram update received: %s",
+            update_id,
+        )
 
         update = Update.de_json(
             data,

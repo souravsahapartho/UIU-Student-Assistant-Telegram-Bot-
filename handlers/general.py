@@ -37,7 +37,7 @@ async def start(
     )
 
     welcome_msg = (
-        f"👋 Welcome to **UIU Smart Assistant**, {user.first_name}!\n\n"
+        f"👋 Welcome to **UIU Student Assistant**, {user.first_name}!\n\n"
         "Your personal assistant for:\n"
         "🎓 CGPA calculation\n"
         "💰 Tuition fee calculation\n"
@@ -106,7 +106,7 @@ async def about(
     context: ContextTypes.DEFAULT_TYPE,
 ):
     about_text = (
-        "🤖 **UIU Smart Assistant**\n\n"
+        "🤖 **UIU Student Assistant**\n\n"
         "A student-focused Telegram assistant for "
         "United International University.\n\n"
         "Version 2.0.0\n\n"
