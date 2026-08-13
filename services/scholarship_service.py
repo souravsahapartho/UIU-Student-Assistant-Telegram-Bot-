@@ -62,7 +62,25 @@ def validate_eligibility(
             "reason": "invalid_input",
         }
 
+    if not math.isfinite(gpa):
+        return {
+            "eligible": False,
+            "reason": "invalid_input",
+        }
+
+    if not math.isfinite(qualifying_credits):
+        return {
+            "eligible": False,
+            "reason": "invalid_input",
+        }
+
     if not 0 <= gpa <= 4:
+        return {
+            "eligible": False,
+            "reason": "invalid_input",
+        }
+
+    if qualifying_credits <= 0:
         return {
             "eligible": False,
             "reason": "invalid_input",
@@ -101,17 +119,21 @@ def estimate_higher_students_from_gpa(
     gpa,
     total_students,
 ):
+    gpa = float(gpa)
+
+    total_students = int(total_students)
+
     gpa = max(
         3.50,
         min(
             4.00,
-            float(gpa),
+            gpa,
         ),
     )
 
     total_students = max(
         10,
-        int(total_students),
+        total_students,
     )
 
     normalized = (gpa - 3.50) / 0.50
@@ -127,6 +149,8 @@ def estimate_higher_students_from_gpa(
     )
 
     estimated_higher = total_students * estimated_top_fraction
+
+    estimated_higher = int(round(estimated_higher))
 
     return max(
         0,
@@ -145,7 +169,11 @@ def estimate_higher_student_range(
     total_students = int(total_students)
 
     if total_students < 2:
-        return 0, 0, False
+        return (
+            0,
+            0,
+            False,
+        )
 
     if higher_students is not None:
         higher_students = int(higher_students)
@@ -266,6 +294,14 @@ def run_monte_carlo_simulation(
         higher_students,
     )
 
+    low = float(low)
+    high = float(high)
+
+    if high < low:
+        high = low
+
+    mode = (low + high) / 2
+
     outcomes = {
         "100%": 0,
         "50%": 0,
@@ -276,11 +312,14 @@ def run_monte_carlo_simulation(
     positions = []
 
     for _ in range(simulations):
-        estimated_higher = random.triangular(
-            low,
-            high,
-            (low + high) / 2,
-        )
+        if low == high:
+            estimated_higher = low
+        else:
+            estimated_higher = random.triangular(
+                low,
+                high,
+                mode,
+            )
 
         estimated_higher = int(round(estimated_higher))
 
@@ -317,8 +356,8 @@ def run_monte_carlo_simulation(
         "probabilities": probabilities,
         "positions": positions,
         "higher_range": (
-            low,
-            high,
+            int(low),
+            int(high),
         ),
         "used_user_estimate": user_estimate,
         "simulations": simulations,
@@ -362,6 +401,11 @@ def top_range_from_positions(
             10.0,
             10.0,
         )
+
+    total_students = max(
+        1,
+        int(total_students),
+    )
 
     percentages = [(position / total_students) * 100 for position in positions]
 
@@ -447,7 +491,7 @@ def generate_estimate(
     try:
         total_students = int(total_students)
 
-        if total_students < 2:
+        if total_students < 10:
             return {
                 "eligible": False,
                 "eligibility": {
@@ -509,6 +553,12 @@ def generate_estimate(
                 position_high,
             ),
             "simulations": simulation["simulations"],
+            "estimate_source": (
+                "user_estimate"
+                if higher_students is not None
+                else "statistical_estimate"
+            ),
+            "is_exact": False,
         }
 
     except Exception:
@@ -544,27 +594,35 @@ def generate_result_text(
     result,
 ):
     gpa = result["gpa"]
-
     program = result["program"]
-
     total_students = result["total_students"]
-
     credits = result["qualifying_credits"]
-
     minimum_credits = result["minimum_credits"]
-
     probabilities = result["display_probabilities"]
-
     low, high = result["position_top_range"]
-
     most_likely = result["most_likely"]
-
     confidence = result["confidence"]
 
     top_range = format_top_range(
         low,
         high,
     )
+
+    source = result.get(
+        "estimate_source",
+        "statistical_estimate",
+    )
+
+    if source == "user_estimate":
+        basis_text = (
+            "Your estimated number of higher-GPA " "students was used as an input."
+        )
+    else:
+        basis_text = (
+            "The number of higher-GPA students was "
+            "estimated statistically from the available "
+            "information."
+        )
 
     return (
         "━━━━━━━━━━━━━━━━━━\n"
@@ -584,13 +642,16 @@ def generate_result_text(
         f"❌ No Scholarship → "
         f"<b>{probabilities['No Scholarship']}</b>\n\n"
         f"🎯 <b>Most Likely Outcome:</b> "
-        f"{most_likely} Scholarship\n\n"
+        f"{most_likely}\n\n"
         f"📈 <b>Confidence:</b> {confidence}\n\n"
-        "⚠️ <b>Important:</b> This is an approximate "
-        "statistical prediction based on the information "
-        "provided. It is not an official UIU ranking or "
-        "scholarship decision. Final scholarship decisions "
-        "are determined by UIU.\n\n"
+        f"🧮 <b>Estimation Basis:</b>\n"
+        f"{basis_text}\n\n"
+        "⚠️ <b>Important:</b> This is only an "
+        "<b>approximate statistical estimate</b>, not an "
+        "exact ranking or official UIU scholarship decision.\n\n"
+        "Final scholarship decisions are determined by UIU "
+        "according to its applicable rules and actual student "
+        "performance.\n\n"
         "📌 Scholarship is subject to the applicable credit "
         "limit and excludes Thesis, Project, Internship, "
         "Retake and Repeat courses."

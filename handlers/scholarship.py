@@ -26,12 +26,12 @@ from services.scholarship_service import (
     generate_result_text,
     generate_ineligible_text,
     scholarship_rules_text,
+    get_minimum_credits,
 )
 
 from keyboards import get_main_menu
 
 logger = logging.getLogger(__name__)
-
 
 PROGRAM_OPTIONS = [
     "BBA",
@@ -52,11 +52,7 @@ PROGRAM_OPTIONS = [
 
 def cancel_keyboard():
     return ReplyKeyboardMarkup(
-        [
-            [
-                "❌ Cancel",
-            ]
-        ],
+        [["❌ Cancel"]],
         resize_keyboard=True,
         one_time_keyboard=False,
         is_persistent=True,
@@ -77,11 +73,7 @@ def program_keyboard():
     if current:
         rows.append(current)
 
-    rows.append(
-        [
-            "❌ Cancel",
-        ]
-    )
+    rows.append(["❌ Cancel"])
 
     return ReplyKeyboardMarkup(
         rows,
@@ -94,15 +86,9 @@ def program_keyboard():
 def higher_choice_keyboard():
     return ReplyKeyboardMarkup(
         [
-            [
-                "📊 I have an estimate",
-            ],
-            [
-                "🤷 I don't know",
-            ],
-            [
-                "❌ Cancel",
-            ],
+            ["📊 I have an estimate"],
+            ["🤷 I don't know"],
+            ["❌ Cancel"],
         ],
         resize_keyboard=True,
         one_time_keyboard=False,
@@ -197,7 +183,8 @@ async def scholarship_gpa(
         return SCHOLARSHIP_GPA
 
     await update.message.reply_text(
-        "<b>Step 2 of 4</b>\n\n" "🎓 <b>Select your program:</b>",
+        "<b>Step 2 of 4</b>\n\n"
+        "🎓 <b>Select your program:</b>",
         reply_markup=program_keyboard(),
         parse_mode="HTML",
     )
@@ -212,10 +199,7 @@ async def scholarship_program(
     program = update.message.text.strip()
 
     if program == "❌ Cancel":
-        return await scholarship_cancel(
-            update,
-            context,
-        )
+        return await scholarship_cancel(update, context)
 
     if program not in PROGRAM_OPTIONS:
         await update.message.reply_text(
@@ -263,13 +247,14 @@ async def scholarship_size(
 
         return SCHOLARSHIP_SIZE
 
-    context.user_data["scholarship_data"]["total_students"] = size
-
-    program = context.user_data["scholarship_data"]["program"]
-
-    from services.scholarship_service import (
-        get_minimum_credits,
+    data = context.user_data.setdefault(
+        "scholarship_data",
+        {},
     )
+
+    data["total_students"] = size
+
+    program = data.get("program")
 
     minimum_credits = get_minimum_credits(program)
 
@@ -301,14 +286,20 @@ async def scholarship_credits(
 
     except ValueError:
         await update.message.reply_text(
-            "⚠️ Please enter a valid credit amount.\n\n" "Example: <code>12</code>",
+            "⚠️ Please enter a valid credit amount.\n\n"
+            "Example: <code>12</code>",
             reply_markup=cancel_keyboard(),
             parse_mode="HTML",
         )
 
         return SCHOLARSHIP_CREDITS
 
-    context.user_data["scholarship_data"]["qualifying_credits"] = credits
+    data = context.user_data.setdefault(
+        "scholarship_data",
+        {},
+    )
+
+    data["qualifying_credits"] = credits
 
     await update.message.reply_text(
         "<b>Step 4 of 4</b>\n\n"
@@ -339,7 +330,13 @@ async def scholarship_higher_choice(
         return SCHOLARSHIP_HIGHER_COUNT
 
     if choice == "🤷 I don't know":
-        context.user_data["scholarship_data"]["higher_students"] = None
+        data = context.user_data.setdefault(
+            "scholarship_data",
+            {},
+        )
+
+        data["higher_students"] = None
+        data["higher_students_source"] = "statistical_estimate"
 
         return await calculate_scholarship(
             update,
@@ -373,6 +370,7 @@ async def scholarship_higher_count(
 
     try:
         higher = int(text)
+
         total_students = int(
             data.get(
                 "total_students",
@@ -402,14 +400,16 @@ async def scholarship_higher_count(
 
     except ValueError:
         await update.message.reply_text(
-            "⚠️ Please enter a valid whole number.\n\n" "Example: <code>20</code>",
+            "⚠️ Please enter a valid whole number.\n\n"
+            "Example: <code>20</code>",
             reply_markup=cancel_keyboard(),
             parse_mode="HTML",
         )
 
         return SCHOLARSHIP_HIGHER_COUNT
 
-    context.user_data["scholarship_data"]["higher_students"] = higher
+    data["higher_students"] = higher
+    data["higher_students_source"] = "user_estimate"
 
     return await calculate_scholarship(
         update,
@@ -433,9 +433,21 @@ async def calculate_scholarship(
         "qualifying_credits",
     ]
 
-    if any(key not in data for key in required):
+    missing = [
+        key
+        for key in required
+        if key not in data
+    ]
+
+    if missing:
+        logger.error(
+            "Scholarship data missing: %s | data=%s",
+            missing,
+            data,
+        )
+
         await update.message.reply_text(
-            "⚠️ Some required information is missing. "
+            "⚠️ Some required information is missing.\n\n"
             "Please start the calculator again.",
             reply_markup=cancel_keyboard(),
         )
@@ -444,43 +456,57 @@ async def calculate_scholarship(
 
     try:
         result = generate_estimate(
-            gpa=data["gpa"],
-            program=data["program"],
-            total_students=data["total_students"],
-            qualifying_credits=data["qualifying_credits"],
-            higher_students=data.get("higher_students"),
+            gpa=float(data["gpa"]),
+            program=str(data["program"]),
+            total_students=int(data["total_students"]),
+            qualifying_credits=float(
+                data["qualifying_credits"]
+            ),
+            higher_students=(
+                None
+                if data.get("higher_students") is None
+                else int(data["higher_students"])
+            ),
         )
 
-        if not result.get("eligible"):
+        if not isinstance(result, dict):
+            raise TypeError(
+                "Scholarship service returned invalid result."
+            )
+
+        if not result.get("eligible", False):
+            eligibility = result.get(
+                "eligibility",
+                {
+                    "reason": "calculation_error",
+                },
+            )
+
             await update.message.reply_text(
                 generate_ineligible_text(
-                    result.get(
-                        "eligibility",
-                        {},
-                    )
+                    eligibility
                 ),
                 reply_markup=cancel_keyboard(),
                 parse_mode="HTML",
             )
 
-            if (
-                result.get(
-                    "eligibility",
-                    {},
-                ).get("reason")
-                == "calculation_error"
-            ):
-                logger.error(
-                    "Scholarship calculation returned calculation_error: %s",
-                    data,
-                )
-
             return SCHOLARSHIP_GPA
+
+        result["estimate_source"] = data.get(
+            "higher_students_source",
+            "statistical_estimate",
+        )
+
+        result["is_exact"] = False
 
         context.user_data["scholarship_result"] = result
 
+        result_text = generate_result_text(
+            result
+        )
+
         await update.message.reply_text(
-            generate_result_text(result),
+            result_text,
             reply_markup=result_keyboard(),
             parse_mode="HTML",
         )
@@ -494,15 +520,15 @@ async def calculate_scholarship(
 
     except Exception as error:
         logger.exception(
-            "Scholarship calculation failed. Data=%s Error=%s",
+            "Scholarship calculation failed. data=%s",
             data,
-            error,
         )
 
         await update.message.reply_text(
             "⚠️ <b>Unable to complete the estimate.</b>\n\n"
-            "Something went wrong while processing the "
-            "statistical calculation. Please try again.",
+            "The statistical estimate could not be generated "
+            "right now.\n\n"
+            "Please try again.",
             reply_markup=cancel_keyboard(),
             parse_mode="HTML",
         )
@@ -524,6 +550,8 @@ async def scholarship_callback(
         await query.message.reply_text(
             "🎓 <b>Scholarship Chance Estimator</b>\n\n"
             "Let's create a new estimate.\n\n"
+            "⚠️ This is an estimate, not an official UIU "
+            "scholarship decision.\n\n"
             "<b>Step 1 of 4</b>\n\n"
             "Enter your <b>previous trimester/semester GPA</b>.\n\n"
             "Example: <code>3.78</code>",
@@ -554,7 +582,9 @@ async def scholarship_callback(
         return
 
     if query.data == "scholarship_back":
-        result = context.user_data.get("scholarship_result")
+        result = context.user_data.get(
+            "scholarship_result"
+        )
 
         if result:
             await query.edit_message_text(
@@ -564,7 +594,8 @@ async def scholarship_callback(
             )
         else:
             await query.edit_message_text(
-                "🎓 <b>Scholarship Estimate</b>\n\n" "Please start a new calculation.",
+                "🎓 <b>Scholarship Estimate</b>\n\n"
+                "Please start a new calculation.",
                 parse_mode="HTML",
             )
 
@@ -585,8 +616,6 @@ async def scholarship_callback(
             "🏠 Main Menu",
             reply_markup=get_main_menu(),
         )
-
-        return
 
 
 async def scholarship_cancel(
