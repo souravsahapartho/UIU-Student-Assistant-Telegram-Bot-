@@ -23,6 +23,7 @@ from states import (
     CGPA_COURSE_COUNT,
     CGPA_COURSE_CREDIT,
     CGPA_COURSE_GRADE,
+    FEE_ACADEMIC_SYSTEM,
     FEE_CREDIT_FEE,
     FEE_TRIMESTER_FEE,
     FEE_REG_CREDITS,
@@ -56,6 +57,7 @@ from handlers.cgpa import (
 
 from handlers.fee import (
     fee_start,
+    get_academic_system,
     get_credit_fee,
     get_trimester_fee,
     get_reg_credits,
@@ -150,6 +152,12 @@ def setup_handlers():
             )
         ],
         states={
+            FEE_ACADEMIC_SYSTEM: [
+                MessageHandler(
+                    filters.TEXT & ~filters.Regex("^❌ Cancel$"),
+                    get_academic_system,
+                )
+            ],
             FEE_CREDIT_FEE: [
                 MessageHandler(
                     filters.TEXT & ~filters.Regex("^❌ Cancel$"),
@@ -207,11 +215,26 @@ def setup_handlers():
         per_chat=True,
     )
 
-    telegram_app.add_handler(CommandHandler("start", start))
+    telegram_app.add_handler(
+        CommandHandler(
+            "start",
+            start,
+        )
+    )
 
-    telegram_app.add_handler(CommandHandler("help", show_help))
+    telegram_app.add_handler(
+        CommandHandler(
+            "help",
+            show_help,
+        )
+    )
 
-    telegram_app.add_handler(CommandHandler("admin", admin_panel))
+    telegram_app.add_handler(
+        CommandHandler(
+            "admin",
+            admin_panel,
+        )
+    )
 
     telegram_app.add_handler(cgpa_conv_handler)
 
@@ -260,7 +283,7 @@ async def error_handler(
     context: ContextTypes.DEFAULT_TYPE,
 ):
     logger.error(
-        "Exception while handling update:",
+        "Exception while handling an update:",
         exc_info=context.error,
     )
 
@@ -355,6 +378,7 @@ async def telegram_webhook(
 ):
 
     if WEBHOOK_SECRET:
+
         received_secret = request.headers.get("X-Telegram-Bot-Api-Secret-Token")
 
         if received_secret != WEBHOOK_SECRET:
@@ -376,6 +400,7 @@ async def telegram_webhook(
         return {"ok": True}
 
     except Exception as error:
+
         logger.error(
             "Webhook error: %s",
             error,
