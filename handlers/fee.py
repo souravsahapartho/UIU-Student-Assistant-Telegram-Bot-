@@ -2,6 +2,8 @@ from telegram import Update
 from telegram.ext import ContextTypes, ConversationHandler
 
 from states import (
+    FEE_CREDIT_FEE,
+    FEE_TRIMESTER_FEE,
     FEE_REG_CREDITS,
     FEE_RETAKE_COUNT,
     FEE_RETAKE_CREDITS,
@@ -15,37 +17,74 @@ from keyboards import (
     get_fee_discount_keyboard,
 )
 
-from database import get_setting
 from config import Config
 
 
 async def fee_start(update: Update, context: ContextTypes.DEFAULT_TYPE):
     context.user_data["fee_data"] = {}
 
-    credit_fee = get_setting(
-        "CREDIT_FEE",
-        Config.DEFAULT_CREDIT_FEE,
-    )
-
-    trimester_fee = get_setting(
-        "TRIMESTER_FEE",
-        Config.DEFAULT_TRIMESTER_FEE,
-    )
-
-    context.user_data["fee_data"]["credit_fee"] = credit_fee
-    context.user_data["fee_data"]["trimester_fee"] = trimester_fee
-
     await update.message.reply_text(
-        "💰 **Fee Calculator**\n\n"
-        f"Credit Fee: {credit_fee:,.2f} BDT\n"
-        f"Trimester Fee: {trimester_fee:,.2f} BDT\n\n"
-        "Step 1: Enter your Total Registered Credits for this trimester.\n"
-        "Example: 15",
+        "💰 Fee Calculator\n\n"
+        "Step 1: Enter the Credit Fee per credit.\n\n"
+        "Example: 6500",
         reply_markup=get_cancel_keyboard(),
-        parse_mode="Markdown",
     )
 
-    return FEE_REG_CREDITS
+    return FEE_CREDIT_FEE
+
+
+async def get_credit_fee(
+    update: Update,
+    context: ContextTypes.DEFAULT_TYPE,
+):
+    text = update.message.text.strip()
+
+    try:
+        credit_fee = float(text)
+
+        if credit_fee <= 0:
+            raise ValueError
+
+        context.user_data["fee_data"]["credit_fee"] = credit_fee
+
+        await update.message.reply_text(
+            "Step 2: Enter the Trimester/Semester Fee.\n\n" "Example: 5000",
+            reply_markup=get_cancel_keyboard(),
+        )
+
+        return FEE_TRIMESTER_FEE
+
+    except ValueError:
+        await update.message.reply_text("⚠️ Please enter a valid positive number.")
+
+        return FEE_CREDIT_FEE
+
+
+async def get_trimester_fee(
+    update: Update,
+    context: ContextTypes.DEFAULT_TYPE,
+):
+    text = update.message.text.strip()
+
+    try:
+        trimester_fee = float(text)
+
+        if trimester_fee < 0:
+            raise ValueError
+
+        context.user_data["fee_data"]["trimester_fee"] = trimester_fee
+
+        await update.message.reply_text(
+            "Step 3: Enter your total registered credits.\n\n" "Example: 15",
+            reply_markup=get_cancel_keyboard(),
+        )
+
+        return FEE_REG_CREDITS
+
+    except ValueError:
+        await update.message.reply_text("⚠️ Please enter a valid number.")
+
+        return FEE_TRIMESTER_FEE
 
 
 async def get_reg_credits(
@@ -63,21 +102,21 @@ async def get_reg_credits(
         context.user_data["fee_data"]["reg_credits"] = credits
 
         await update.message.reply_text(
-            "Step 2: How many **FIRST-TIME retake courses** do you have?\n\n"
-            "First-time retake = the course is being retaken for the first time.\n"
+            "Step 4: How many FIRST-TIME retake courses do you have?\n\n"
+            "First-time retake courses receive 50% discount.\n"
             "Enter 0 if you have none.",
             reply_markup=get_cancel_keyboard(),
-            parse_mode="Markdown",
         )
 
         context.user_data["fee_data"]["retake_stage"] = "first"
+        context.user_data["fee_data"]["first_retake_count"] = 0
+        context.user_data["fee_data"]["first_retake_credits"] = []
+        context.user_data["fee_data"]["current_retake"] = 1
 
         return FEE_RETAKE_COUNT
 
     except ValueError:
-        await update.message.reply_text(
-            "⚠️ Invalid input.\n\n" "Please enter a valid positive number."
-        )
+        await update.message.reply_text("⚠️ Please enter a valid positive number.")
 
         return FEE_REG_CREDITS
 
@@ -95,31 +134,39 @@ async def get_retake_count(
             raise ValueError
 
         data = context.user_data["fee_data"]
-        stage = data.get("retake_stage", "first")
+
+        stage = data.get(
+            "retake_stage",
+            "first",
+        )
 
         if stage == "first":
+
             data["first_retake_count"] = count
             data["first_retake_credits"] = []
             data["current_retake"] = 1
 
             if count > 0:
+
                 await update.message.reply_text(
-                    "Enter credit for **First-Time Retake Course 1:**",
+                    "Enter credit for FIRST-TIME Retake Course 1:",
                     reply_markup=get_cancel_keyboard(),
-                    parse_mode="Markdown",
                 )
 
                 return FEE_RETAKE_CREDITS
 
             data["retake_stage"] = "repeat"
+            data["repeat_retake_count"] = 0
+            data["repeat_retake_credits"] = []
+            data["current_retake"] = 1
 
             await update.message.reply_text(
-                "Step 3: How many **SECOND-TIME OR SUBSEQUENT retake courses** "
+                "Step 5: How many SECOND-TIME or SUBSEQUENT retake courses "
                 "do you have?\n\n"
-                "These retakes receive **no retake discount**.\n"
+                "These retake courses receive NO discount.\n"
+                "They are also NOT eligible for Scholarship or Tuition Waiver.\n\n"
                 "Enter 0 if you have none.",
                 reply_markup=get_cancel_keyboard(),
-                parse_mode="Markdown",
             )
 
             return FEE_RETAKE_COUNT
@@ -129,28 +176,25 @@ async def get_retake_count(
         data["current_retake"] = 1
 
         if count > 0:
+
             await update.message.reply_text(
-                "Enter credit for **Second-Time/Subsequent Retake Course 1:**",
+                "Enter credit for SECOND-TIME/SUBSEQUENT " "Retake Course 1:",
                 reply_markup=get_cancel_keyboard(),
-                parse_mode="Markdown",
             )
 
             return FEE_RETAKE_CREDITS
 
         await update.message.reply_text(
-            "Step 4: Do you have a Scholarship or Tuition Waiver?\n\n"
-            "⚠️ Scholarship/Waiver applies only to **regular course tuition**.\n"
-            "Retake courses are not eligible for Scholarship or Tuition Waiver.",
+            "Step 6: Do you have a Scholarship or Tuition Waiver?\n\n"
+            "⚠️ Scholarship/Waiver applies ONLY to regular course tuition.\n"
+            "⚠️ Retake courses are NOT eligible.",
             reply_markup=get_fee_discount_keyboard(),
-            parse_mode="Markdown",
         )
 
         return FEE_DISCOUNT_TYPE
 
     except ValueError:
-        await update.message.reply_text(
-            "⚠️ Invalid input.\n\n" "Please enter 0 or a positive integer."
-        )
+        await update.message.reply_text("⚠️ Please enter 0 or a positive whole number.")
 
         return FEE_RETAKE_COUNT
 
@@ -168,35 +212,42 @@ async def get_retake_credits(
             raise ValueError
 
         data = context.user_data["fee_data"]
-        stage = data.get("retake_stage", "first")
+
+        stage = data.get(
+            "retake_stage",
+            "first",
+        )
 
         if stage == "first":
+
             data["first_retake_credits"].append(credit)
 
             current = data["current_retake"]
             total = data["first_retake_count"]
 
             if current < total:
+
                 data["current_retake"] += 1
 
                 await update.message.reply_text(
-                    f"Enter credit for **First-Time Retake Course {current + 1}:**",
+                    f"Enter credit for FIRST-TIME " f"Retake Course {current + 1}:",
                     reply_markup=get_cancel_keyboard(),
-                    parse_mode="Markdown",
                 )
 
                 return FEE_RETAKE_CREDITS
 
             data["retake_stage"] = "repeat"
+            data["repeat_retake_count"] = 0
+            data["repeat_retake_credits"] = []
             data["current_retake"] = 1
 
             await update.message.reply_text(
-                "Step 3: How many **SECOND-TIME OR SUBSEQUENT retake courses** "
-                "do you have?\n\n"
-                "These retakes receive **no discount**.\n"
+                "Step 5: How many SECOND-TIME or SUBSEQUENT "
+                "retake courses do you have?\n\n"
+                "These retakes receive NO discount.\n"
+                "They are NOT eligible for Scholarship or Tuition Waiver.\n\n"
                 "Enter 0 if you have none.",
                 reply_markup=get_cancel_keyboard(),
-                parse_mode="Markdown",
             )
 
             return FEE_RETAKE_COUNT
@@ -207,30 +258,29 @@ async def get_retake_credits(
         total = data["repeat_retake_count"]
 
         if current < total:
+
             data["current_retake"] += 1
 
             await update.message.reply_text(
-                f"Enter credit for "
-                f"**Second-Time/Subsequent Retake Course {current + 1}:**",
+                f"Enter credit for SECOND-TIME/SUBSEQUENT "
+                f"Retake Course {current + 1}:",
                 reply_markup=get_cancel_keyboard(),
-                parse_mode="Markdown",
             )
 
             return FEE_RETAKE_CREDITS
 
         await update.message.reply_text(
-            "Step 4: Do you have a Scholarship or Tuition Waiver?\n\n"
-            "⚠️ Scholarship/Waiver applies only to **regular course tuition**.\n"
-            "Retake courses are not eligible for Scholarship or Tuition Waiver.",
+            "Step 6: Do you have a Scholarship or Tuition Waiver?\n\n"
+            "⚠️ Scholarship/Waiver applies ONLY to regular course tuition.\n"
+            "⚠️ Retake courses are NOT eligible.",
             reply_markup=get_fee_discount_keyboard(),
-            parse_mode="Markdown",
         )
 
         return FEE_DISCOUNT_TYPE
 
     except ValueError:
         await update.message.reply_text(
-            "⚠️ Invalid credit.\n\n" "Please enter a valid positive number."
+            "⚠️ Please enter a valid positive credit number."
         )
 
         return FEE_RETAKE_CREDITS
@@ -243,16 +293,25 @@ async def get_discount_type(
     choice = update.message.text.strip()
 
     if choice == "⏩ None":
+
         context.user_data["fee_data"]["discount_type"] = "None"
+
         context.user_data["fee_data"]["discount_percent"] = 0
 
-        return await calculate_fees(update, context)
+        return await calculate_fees(
+            update,
+            context,
+        )
 
-    if choice in ["🎁 Scholarship", "💸 Tuition Waiver"]:
+    if choice in [
+        "🎁 Scholarship",
+        "💸 Tuition Waiver",
+    ]:
+
         context.user_data["fee_data"]["discount_type"] = choice
 
         await update.message.reply_text(
-            "Enter the discount percentage.\n\n" "Example: 25 for 25%",
+            "Enter the discount percentage.\n\n" "Example: 25",
             reply_markup=get_cancel_keyboard(),
         )
 
@@ -280,12 +339,13 @@ async def get_discount_percent(
 
         context.user_data["fee_data"]["discount_percent"] = percent
 
-        return await calculate_fees(update, context)
+        return await calculate_fees(
+            update,
+            context,
+        )
 
     except ValueError:
-        await update.message.reply_text(
-            "⚠️ Invalid percentage.\n\n" "Enter a number between 0 and 100."
-        )
+        await update.message.reply_text("⚠️ Enter a percentage between 0 and 100.")
 
         return FEE_DISCOUNT_PERCENT
 
@@ -296,54 +356,27 @@ async def calculate_fees(
 ):
     data = context.user_data["fee_data"]
 
-    credit_fee = data.get(
-        "credit_fee",
-        get_setting(
-            "CREDIT_FEE",
-            Config.DEFAULT_CREDIT_FEE,
-        ),
+    credit_fee = data["credit_fee"]
+    trimester_fee = data["trimester_fee"]
+
+    reg_credits = data.get(
+        "reg_credits",
+        0,
     )
 
-    trimester_fee = data.get(
-        "trimester_fee",
-        get_setting(
-            "TRIMESTER_FEE",
-            Config.DEFAULT_TRIMESTER_FEE,
-        ),
+    first_retake_credits = sum(
+        data.get(
+            "first_retake_credits",
+            [],
+        )
     )
 
-    other_fees = get_setting(
-        "OTHER_FEES",
-        Config.DEFAULT_OTHER_FEES,
+    repeat_retake_credits = sum(
+        data.get(
+            "repeat_retake_credits",
+            [],
+        )
     )
-
-    min_payment = get_setting(
-        "MINIMUM_PAYMENT",
-        Config.DEFAULT_MINIMUM_PAYMENT,
-    )
-
-    scholarship_limit = get_setting(
-        "SCHOLARSHIP_CREDIT_LIMIT",
-        Config.DEFAULT_SCHOLARSHIP_CREDIT_LIMIT,
-    )
-
-    first_retake_discount = 50
-
-    reg_credits = data.get("reg_credits", 0)
-
-    first_retake_credits_list = data.get(
-        "first_retake_credits",
-        [],
-    )
-
-    repeat_retake_credits_list = data.get(
-        "repeat_retake_credits",
-        [],
-    )
-
-    first_retake_credits = sum(first_retake_credits_list)
-
-    repeat_retake_credits = sum(repeat_retake_credits_list)
 
     total_retake_credits = first_retake_credits + repeat_retake_credits
 
@@ -354,13 +387,11 @@ async def calculate_fees(
 
     regular_tuition = regular_credits * credit_fee
 
-    first_retake_normal_tuition = first_retake_credits * credit_fee
+    first_retake_normal = first_retake_credits * credit_fee
 
-    first_retake_discount_amount = (
-        first_retake_normal_tuition * first_retake_discount / 100
-    )
+    first_retake_discount = first_retake_normal * 0.50
 
-    first_retake_tuition = first_retake_normal_tuition - first_retake_discount_amount
+    first_retake_tuition = first_retake_normal - first_retake_discount
 
     repeat_retake_tuition = repeat_retake_credits * credit_fee
 
@@ -374,93 +405,52 @@ async def calculate_fees(
         0,
     )
 
-    scholarship_waiver_discount = 0
+    regular_discount = regular_tuition * discount_percent / 100
 
-    if discount_percent > 0:
-        if "Scholarship" in discount_type:
-            eligible_credits = min(
-                regular_credits,
-                scholarship_limit,
-            )
+    final_regular_tuition = regular_tuition - regular_discount
 
-            scholarship_waiver_discount = (
-                eligible_credits * credit_fee * discount_percent / 100
-            )
+    other_fees = getattr(
+        Config,
+        "DEFAULT_OTHER_FEES",
+        0,
+    )
 
-        elif "Waiver" in discount_type:
-            scholarship_waiver_discount = (
-                regular_credits * credit_fee * discount_percent / 100
-            )
+    total_tuition = final_regular_tuition + first_retake_tuition + repeat_retake_tuition
 
-    total_tuition = regular_tuition + first_retake_tuition + repeat_retake_tuition
-
-    total_discount = first_retake_discount_amount + scholarship_waiver_discount
+    total_discount = first_retake_discount + regular_discount
 
     total_payable = total_tuition + trimester_fee + other_fees
 
-    if total_payable <= min_payment:
-        registration_payment = total_payable
-        remaining_balance = 0
-
-        payment_plan = (
-            f"Registration Payment: "
-            f"{registration_payment:,.2f} BDT\n"
-            f"Remaining Balance: 0.00 BDT"
-        )
-
-    else:
-        registration_payment = min_payment
-        remaining_balance = total_payable - registration_payment
-
-        inst1 = remaining_balance * Config.INSTALLMENT_1_PERCENT
-
-        inst2 = remaining_balance * Config.INSTALLMENT_2_PERCENT
-
-        inst3 = remaining_balance * Config.INSTALLMENT_3_PERCENT
-
-        payment_plan = (
-            f"Registration Payment: "
-            f"{registration_payment:,.2f} BDT\n"
-            f"1st Installment (40%): "
-            f"{inst1:,.2f} BDT\n"
-            f"2nd Installment (30%): "
-            f"{inst2:,.2f} BDT\n"
-            f"3rd Installment (30%): "
-            f"{inst3:,.2f} BDT"
-        )
-
-    report = (
-        "💰 **FEE ESTIMATE**\n\n"
+    result = (
+        "💰 FEE CALCULATION\n\n"
+        f"Credit Fee: {credit_fee:,.2f} BDT\n"
+        f"Trimester/Semester Fee: {trimester_fee:,.2f} BDT\n\n"
         f"Registered Credits: {reg_credits:,.2f}\n"
         f"Regular Credits: {regular_credits:,.2f}\n"
         f"First-Time Retake Credits: "
         f"{first_retake_credits:,.2f}\n"
         f"Subsequent Retake Credits: "
-        f"{repeat_retake_credits:,.2f}\n"
-        f"Total Retake Credits: "
-        f"{total_retake_credits:,.2f}\n\n"
-        f"Credit Fee: {credit_fee:,.2f} BDT\n"
-        f"Trimester Fee: {trimester_fee:,.2f} BDT\n"
-        "--------------------------\n"
+        f"{repeat_retake_credits:,.2f}\n\n"
         f"Regular Tuition: "
         f"{regular_tuition:,.2f} BDT\n"
         f"First-Time Retake Tuition: "
         f"{first_retake_tuition:,.2f} BDT\n"
         f"Subsequent Retake Tuition: "
-        f"{repeat_retake_tuition:,.2f} BDT\n"
-        "--------------------------\n"
+        f"{repeat_retake_tuition:,.2f} BDT\n\n"
         f"First-Time Retake Discount (50%): "
-        f"-{first_retake_discount_amount:,.2f} BDT\n"
+        f"-{first_retake_discount:,.2f} BDT\n"
         f"{discount_type} Discount on Regular Tuition: "
-        f"-{scholarship_waiver_discount:,.2f} BDT\n"
-        "--------------------------\n"
-        f"Other Fees: {other_fees:,.2f} BDT\n"
-        f"**Total Payable: {total_payable:,.2f} BDT**\n\n"
+        f"-{regular_discount:,.2f} BDT\n\n"
+        f"Other Fees: "
+        f"{other_fees:,.2f} BDT\n"
+        f"Total Discount: "
+        f"-{total_discount:,.2f} BDT\n\n"
+        f"💵 TOTAL PAYABLE: "
+        f"{total_payable:,.2f} BDT\n\n"
+        "ℹ️ First-time retake gets 50% discount.\n"
+        "ℹ️ Subsequent retakes get no discount.\n"
         "ℹ️ Retake courses are not eligible for "
-        "Scholarship or Tuition Waiver.\n"
-        "ℹ️ Subsequent retakes receive no retake discount.\n\n"
-        "📅 **Payment Plan:**\n"
-        f"{payment_plan}"
+        "Scholarship or Tuition Waiver."
     )
 
     context.user_data.pop(
@@ -469,9 +459,8 @@ async def calculate_fees(
     )
 
     await update.message.reply_text(
-        report,
+        result,
         reply_markup=get_main_menu(),
-        parse_mode="Markdown",
     )
 
     return ConversationHandler.END
@@ -487,7 +476,7 @@ async def fee_cancel(
     )
 
     await update.message.reply_text(
-        "❌ Calculation cancelled.",
+        "❌ Fee calculation cancelled.",
         reply_markup=get_main_menu(),
     )
 
