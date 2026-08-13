@@ -89,6 +89,24 @@ from handlers.fee import (
 from handlers.calendar import academic_calendar
 from handlers.admin import admin_panel
 
+from handlers.scholarship import (
+    scholarship_start,
+    scholarship_gpa,
+    scholarship_program,
+    scholarship_size,
+    scholarship_credits,
+    scholarship_higher_choice,
+    scholarship_higher_count,
+    scholarship_cancel,
+    scholarship_callback,
+    SCHOLARSHIP_GPA,
+    SCHOLARSHIP_PROGRAM,
+    SCHOLARSHIP_SIZE,
+    SCHOLARSHIP_CREDITS,
+    SCHOLARSHIP_HIGHER_CHOICE,
+    SCHOLARSHIP_HIGHER_COUNT,
+)
+
 from services.calendar_service import sync_calendars
 
 
@@ -283,6 +301,7 @@ def setup_handlers():
                 cgpa_start,
             )
         ],
+
         states={
             CGPA_PREV_CREDITS: [
                 MessageHandler(
@@ -368,7 +387,7 @@ def setup_handlers():
                     get_course_grade,
                 ),
             ],
-        ],
+        },
 
         fallbacks=[
             MessageHandler(
@@ -506,6 +525,120 @@ def setup_handlers():
         allow_reentry=True,
     )
 
+    scholarship_handler = ConversationHandler(
+        entry_points=[
+            MessageHandler(
+                filters.Regex(
+                    r"^🎁 Scholarship Calculator$"
+                ),
+                scholarship_start,
+            )
+        ],
+
+        states={
+            SCHOLARSHIP_GPA: [
+                MessageHandler(
+                    filters.Regex(
+                        r"^❌ Cancel$"
+                    ),
+                    scholarship_cancel,
+                ),
+                MessageHandler(
+                    filters.TEXT
+                    & ~filters.COMMAND,
+                    scholarship_gpa,
+                ),
+            ],
+
+            SCHOLARSHIP_PROGRAM: [
+                MessageHandler(
+                    filters.Regex(
+                        r"^❌ Cancel$"
+                    ),
+                    scholarship_cancel,
+                ),
+                MessageHandler(
+                    filters.TEXT
+                    & ~filters.COMMAND,
+                    scholarship_program,
+                ),
+            ],
+
+            SCHOLARSHIP_SIZE: [
+                MessageHandler(
+                    filters.Regex(
+                        r"^❌ Cancel$"
+                    ),
+                    scholarship_cancel,
+                ),
+                MessageHandler(
+                    filters.TEXT
+                    & ~filters.COMMAND,
+                    scholarship_size,
+                ),
+            ],
+
+            SCHOLARSHIP_CREDITS: [
+                MessageHandler(
+                    filters.Regex(
+                        r"^❌ Cancel$"
+                    ),
+                    scholarship_cancel,
+                ),
+                MessageHandler(
+                    filters.TEXT
+                    & ~filters.COMMAND,
+                    scholarship_credits,
+                ),
+            ],
+
+            SCHOLARSHIP_HIGHER_CHOICE: [
+                MessageHandler(
+                    filters.Regex(
+                        r"^❌ Cancel$"
+                    ),
+                    scholarship_cancel,
+                ),
+                MessageHandler(
+                    filters.TEXT
+                    & ~filters.COMMAND,
+                    scholarship_higher_choice,
+                ),
+            ],
+
+            SCHOLARSHIP_HIGHER_COUNT: [
+                MessageHandler(
+                    filters.Regex(
+                        r"^❌ Cancel$"
+                    ),
+                    scholarship_cancel,
+                ),
+                MessageHandler(
+                    filters.TEXT
+                    & ~filters.COMMAND,
+                    scholarship_higher_count,
+                ),
+            ],
+        ],
+
+        fallbacks=[
+            MessageHandler(
+                filters.Regex(
+                    r"^❌ Cancel$"
+                ),
+                scholarship_cancel,
+            ),
+            CommandHandler(
+                "cancel",
+                scholarship_cancel,
+            ),
+        ],
+
+        per_user=True,
+        per_chat=True,
+        allow_reentry=True,
+    )
+
     telegram_app.add_handler(
         CommandHandler(
             "start",
@@ -533,6 +666,10 @@ def setup_handlers():
 
     telegram_app.add_handler(
         fee_handler
+    )
+
+    telegram_app.add_handler(
+        scholarship_handler
     )
 
     telegram_app.add_handler(
@@ -626,15 +763,6 @@ def setup_handlers():
     )
 
     telegram_app.add_handler(
-        MessageHandler(
-            filters.Regex(
-                r"^🎁 Scholarship Calculator$"
-            ),
-            show_not_implemented,
-        )
-    )
-
-    telegram_app.add_handler(
         CallbackQueryHandler(
             academic_info_callback,
             pattern=r"^acad_",
@@ -648,6 +776,13 @@ def setup_handlers():
         )
     )
 
+    telegram_app.add_handler(
+        CallbackQueryHandler(
+            scholarship_callback,
+            pattern=r"^scholarship_",
+        )
+    )
+
 
 async def error_handler(
     update: object,
@@ -658,7 +793,10 @@ async def error_handler(
         exc_info=context.error,
     )
 
-    if isinstance(update, Update) and update.message:
+    if isinstance(
+        update,
+        Update,
+    ) and update.message:
         try:
             await update.message.reply_text(
                 "⚠️ Something went wrong. Please try again."
@@ -717,7 +855,9 @@ async def lifespan(
     }
 
     if WEBHOOK_SECRET:
-        webhook_args["secret_token"] = WEBHOOK_SECRET
+        webhook_args[
+            "secret_token"
+        ] = WEBHOOK_SECRET
 
     await telegram_app.bot.set_webhook(
         **webhook_args
