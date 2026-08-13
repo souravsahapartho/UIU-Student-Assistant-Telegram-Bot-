@@ -1,3 +1,4 @@
+import asyncio
 import logging
 import os
 from contextlib import asynccontextmanager
@@ -103,7 +104,11 @@ WEBHOOK_SECRET = os.getenv(
     "",
 ).strip()
 
-telegram_app = Application.builder().token(Config.BOT_TOKEN).build()
+telegram_app = (
+    Application.builder().token(Config.BOT_TOKEN).concurrent_updates(True).build()
+)
+
+_handlers_setup = False
 
 
 async def send_calendar_notifications(
@@ -154,7 +159,6 @@ async def send_calendar_notifications(
                     text=text,
                     reply_markup=markup,
                 )
-
             except Exception as error:
                 logger.warning(
                     "New calendar notification failed for %s: %s",
@@ -200,7 +204,6 @@ async def send_calendar_notifications(
                     text=text,
                     reply_markup=markup,
                 )
-
             except Exception as error:
                 logger.warning(
                     "Updated calendar notification failed for %s: %s",
@@ -258,6 +261,11 @@ async def calendar_update_job(
 
 
 def setup_handlers():
+
+    global _handlers_setup
+
+    if _handlers_setup:
+        return
 
     cgpa_conv_handler = ConversationHandler(
         entry_points=[
@@ -491,6 +499,8 @@ def setup_handlers():
         )
     )
 
+    _handlers_setup = True
+
 
 async def error_handler(
     update: object,
@@ -508,6 +518,30 @@ async def error_handler(
             )
         except Exception:
             pass
+
+
+async def process_telegram_update(
+    update: Update,
+):
+    try:
+        logger.info(
+            "Processing Telegram update: %s",
+            update.update_id,
+        )
+
+        await telegram_app.process_update(update)
+
+        logger.info(
+            "Telegram update processed successfully: %s",
+            update.update_id,
+        )
+
+    except Exception as error:
+        logger.error(
+            "Background Telegram update processing failed: %s",
+            error,
+            exc_info=True,
+        )
 
 
 @asynccontextmanager
@@ -546,31 +580,37 @@ async def lifespan(
     webhook_args = {
         "url": webhook_url,
         "drop_pending_updates": False,
+        "allowed_updates": [
+            "message",
+            "callback_query",
+        ],
     }
 
     if WEBHOOK_SECRET:
         webhook_args["secret_token"] = WEBHOOK_SECRET
 
-    webhook_result = await telegram_app.bot.set_webhook(**webhook_args)
+    await telegram_app.bot.set_webhook(**webhook_args)
 
     logger.info(
         "Webhook configured: %s",
         webhook_url,
     )
 
-    logger.info(
-        "Webhook set result: %s",
-        webhook_result,
-    )
+    try:
+        webhook_info = await telegram_app.bot.get_webhook_info()
 
-    webhook_info = await telegram_app.bot.get_webhook_info()
+        logger.info(
+            "Webhook info: url=%s pending=%s last_error=%s",
+            webhook_info.url,
+            webhook_info.pending_update_count,
+            webhook_info.last_error_message,
+        )
 
-    logger.info(
-        "Webhook info: url=%s pending=%s last_error=%s",
-        webhook_info.url,
-        webhook_info.pending_update_count,
-        webhook_info.last_error_message,
-    )
+    except Exception as error:
+        logger.warning(
+            "Could not read webhook info: %s",
+            error,
+        )
 
     logger.info("UIU Smart Assistant is running...")
 
@@ -650,15 +690,10 @@ async def telegram_webhook(
 
             return {"ok": True}
 
-        logger.info(
-            "Processing Telegram update: %s",
-            update_id,
-        )
-
-        await telegram_app.process_update(update)
+        asyncio.create_task(process_telegram_update(update))
 
         logger.info(
-            "Telegram update processed successfully: %s",
+            "Telegram update accepted immediately: %s",
             update_id,
         )
 
