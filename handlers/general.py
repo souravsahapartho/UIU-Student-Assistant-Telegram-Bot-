@@ -5,6 +5,7 @@ from telegram import (
     Update,
     InlineKeyboardMarkup,
     InlineKeyboardButton,
+    ReplyKeyboardRemove,
 )
 
 from telegram.ext import ContextTypes
@@ -12,6 +13,7 @@ from telegram.ext import ContextTypes
 from keyboards import (
     get_main_menu,
     get_links_keyboard,
+    get_academic_info_menu,
 )
 
 from database import (
@@ -153,48 +155,9 @@ async def academic_info(
     update: Update,
     context: ContextTypes.DEFAULT_TYPE,
 ):
-    keyboard = [
-        [
-            InlineKeyboardButton(
-                "🎓 Admission",
-                url="https://www.uiu.ac.bd/admission/",
-            ),
-            InlineKeyboardButton(
-                "📝 Registration",
-                callback_data="acad_registration",
-            ),
-        ],
-        [
-            InlineKeyboardButton(
-                "📊 Credit System",
-                callback_data="acad_credit",
-            ),
-            InlineKeyboardButton(
-                "🔄 Retake Rules",
-                callback_data="acad_retake",
-            ),
-        ],
-        [
-            InlineKeyboardButton(
-                "🎯 Graduation",
-                url="https://convocation.uiu.ac.bd/",
-            ),
-            InlineKeyboardButton(
-                "📚 Grading System",
-                callback_data="acad_grading",
-            ),
-        ],
-        [
-            InlineKeyboardButton(
-                "⬅️ Main Menu",
-                callback_data="acad_back",
-            ),
-        ],
-    ]
-
     await update.message.reply_text(
         "📚 **Academic Information**\n\n" "Select a topic:",
-        reply_markup=InlineKeyboardMarkup(keyboard),
+        reply_markup=get_academic_info_menu(),
         parse_mode="Markdown",
     )
 
@@ -217,8 +180,7 @@ def grading_system_text():
         "D        1.00    55–57     Pass\n"
         "F        0.00    0–54      Fail\n"
         "</pre>\n\n"
-        "📌 This grading scale is used for "
-        "CGPA calculation."
+        "📌 This grading scale is used for CGPA calculation."
     )
 
 
@@ -229,57 +191,6 @@ async def academic_info_callback(
     query = update.callback_query
 
     await query.answer()
-
-    if query.data == "acad_back":
-        await query.edit_message_text("Use /start to return to the main menu.")
-        return
-
-    if query.data == "acad_back_info":
-        keyboard = [
-            [
-                InlineKeyboardButton(
-                    "🎓 Admission",
-                    url="https://www.uiu.ac.bd/admission/",
-                ),
-                InlineKeyboardButton(
-                    "📝 Registration",
-                    callback_data="acad_registration",
-                ),
-            ],
-            [
-                InlineKeyboardButton(
-                    "📊 Credit System",
-                    callback_data="acad_credit",
-                ),
-                InlineKeyboardButton(
-                    "🔄 Retake Rules",
-                    callback_data="acad_retake",
-                ),
-            ],
-            [
-                InlineKeyboardButton(
-                    "🎯 Graduation",
-                    url="https://convocation.uiu.ac.bd/",
-                ),
-                InlineKeyboardButton(
-                    "📚 Grading System",
-                    callback_data="acad_grading",
-                ),
-            ],
-            [
-                InlineKeyboardButton(
-                    "⬅️ Main Menu",
-                    callback_data="acad_back",
-                ),
-            ],
-        ]
-
-        await query.edit_message_text(
-            "📚 **Academic Information**\n\n" "Select a topic:",
-            reply_markup=InlineKeyboardMarkup(keyboard),
-            parse_mode="Markdown",
-        )
-        return
 
     if query.data == "acad_grading":
         keyboard = [
@@ -298,24 +209,72 @@ async def academic_info_callback(
         )
         return
 
+    if query.data == "acad_back_info":
+        await query.edit_message_text(
+            "📚 **Academic Information**\n\n" "Select a topic:",
+            reply_markup=InlineKeyboardMarkup(
+                [
+                    [
+                        InlineKeyboardButton(
+                            "🎓 Admission",
+                            url="https://www.uiu.ac.bd/admission/",
+                        ),
+                        InlineKeyboardButton(
+                            "📝 Registration",
+                            callback_data="acad_registration",
+                        ),
+                    ],
+                    [
+                        InlineKeyboardButton(
+                            "📊 Credit System",
+                            callback_data="acad_credit",
+                        ),
+                        InlineKeyboardButton(
+                            "🔄 Retake Rules",
+                            callback_data="acad_retake",
+                        ),
+                    ],
+                    [
+                        InlineKeyboardButton(
+                            "🎯 Graduation",
+                            url="https://convocation.uiu.ac.bd/",
+                        ),
+                        InlineKeyboardButton(
+                            "📚 Grading System",
+                            callback_data="acad_grading",
+                        ),
+                    ],
+                    [
+                        InlineKeyboardButton(
+                            "⬅️ Main Menu",
+                            callback_data="acad_back",
+                        ),
+                    ],
+                ]
+            ),
+            parse_mode="Markdown",
+        )
+        return
+
+    if query.data == "acad_back":
+        await query.edit_message_text("Use /start to return to the main menu.")
+        return
+
     information = {
         "acad_registration": (
             "📝 **Registration**\n\n"
-            "Course registration information and "
-            "deadlines should be verified through "
-            "UCAM and official UIU announcements."
+            "Course registration information and deadlines "
+            "should be verified through UCAM and official UIU announcements."
         ),
         "acad_credit": (
             "📊 **Credit System**\n\n"
-            "Credit requirements depend on the "
-            "academic program. Check your department's "
-            "official curriculum."
+            "Credit requirements depend on the academic program. "
+            "Check your department's official curriculum."
         ),
         "acad_retake": (
             "🔄 **Retake Rules**\n\n"
             "Retake and improvement policies may change. "
-            "Please verify the current policy through "
-            "official UIU sources."
+            "Please verify the current policy through official UIU sources."
         ),
     }
 
@@ -388,8 +347,7 @@ async def notices(
         for notice in db_notices:
             msg += (
                 f"📌 **{notice['title']}**\n"
-                f"🔗 [Read Full Notice]"
-                f"({notice['link']})\n\n"
+                f"🔗 [Read Full Notice]({notice['link']})\n\n"
             )
 
         await update.message.reply_text(
@@ -466,7 +424,7 @@ async def settings_callback(
         ]
 
         await query.edit_message_text(
-            "⚙️ **Settings**\n\n" f"🔔 Notifications are now " f"{status_text}.",
+            "⚙️ **Settings**\n\n" f"🔔 Notifications are now {status_text}.",
             reply_markup=InlineKeyboardMarkup(keyboard),
             parse_mode="Markdown",
         )
@@ -483,6 +441,153 @@ async def handle_cancel(
         "❌ Cancelled.",
         reply_markup=get_main_menu(),
     )
+
+
+async def academic_info_main_menu(
+    update: Update,
+    context: ContextTypes.DEFAULT_TYPE,
+):
+    await update.message.reply_text(
+        "⬅️ Main Menu",
+        reply_markup=get_main_menu(),
+    )
+
+
+async def academic_admission(
+    update: Update,
+    context: ContextTypes.DEFAULT_TYPE,
+):
+    await update.message.reply_text(
+        "🎓 Admission\n\n" "Open the official UIU admission page:",
+        reply_markup=InlineKeyboardMarkup(
+            [
+                [
+                    InlineKeyboardButton(
+                        "🎓 Open Admission",
+                        url="https://www.uiu.ac.bd/admission/",
+                    )
+                ]
+            ]
+        ),
+    )
+
+
+async def academic_graduation(
+    update: Update,
+    context: ContextTypes.DEFAULT_TYPE,
+):
+    await update.message.reply_text(
+        "🎯 Graduation\n\n" "Open the official UIU Convocation page:",
+        reply_markup=InlineKeyboardMarkup(
+            [
+                [
+                    InlineKeyboardButton(
+                        "🎯 Open Graduation",
+                        url="https://convocation.uiu.ac.bd/",
+                    )
+                ]
+            ]
+        ),
+    )
+
+
+async def academic_grading(
+    update: Update,
+    context: ContextTypes.DEFAULT_TYPE,
+):
+    await update.message.reply_text(
+        grading_system_text(),
+        parse_mode="HTML",
+        reply_markup=get_academic_info_menu(),
+    )
+
+
+async def academic_registration(
+    update: Update,
+    context: ContextTypes.DEFAULT_TYPE,
+):
+    await update.message.reply_text(
+        "📝 **Registration**\n\n"
+        "Course registration information and deadlines "
+        "should be verified through UCAM and official UIU announcements.",
+        parse_mode="Markdown",
+        reply_markup=get_academic_info_menu(),
+    )
+
+
+async def academic_credit(
+    update: Update,
+    context: ContextTypes.DEFAULT_TYPE,
+):
+    await update.message.reply_text(
+        "📊 **Credit System**\n\n"
+        "Credit requirements depend on the academic program. "
+        "Check your department's official curriculum.",
+        parse_mode="Markdown",
+        reply_markup=get_academic_info_menu(),
+    )
+
+
+async def academic_retake(
+    update: Update,
+    context: ContextTypes.DEFAULT_TYPE,
+):
+    await update.message.reply_text(
+        "🔄 **Retake Rules**\n\n"
+        "Retake and improvement policies may change. "
+        "Please verify the current policy through official UIU sources.",
+        parse_mode="Markdown",
+        reply_markup=get_academic_info_menu(),
+    )
+
+
+async def academic_info_menu_handler(
+    update: Update,
+    context: ContextTypes.DEFAULT_TYPE,
+):
+    text = update.message.text
+
+    if text == "🎓 Admission":
+        await academic_admission(
+            update,
+            context,
+        )
+        return
+
+    if text == "🎯 Graduation":
+        await academic_graduation(
+            update,
+            context,
+        )
+        return
+
+    if text == "📚 Grading System":
+        await academic_grading(
+            update,
+            context,
+        )
+        return
+
+    if text == "📝 Registration":
+        await academic_registration(
+            update,
+            context,
+        )
+        return
+
+    if text == "📊 Credit System":
+        await academic_credit(
+            update,
+            context,
+        )
+        return
+
+    if text == "🔄 Retake Rules":
+        await academic_retake(
+            update,
+            context,
+        )
+        return
 
 
 async def show_not_implemented(
