@@ -1,4 +1,3 @@
-import asyncio
 import logging
 import os
 from contextlib import asynccontextmanager
@@ -95,14 +94,14 @@ logging.basicConfig(
     level=logging.INFO,
 )
 
-logger = logging.getLogger(__name__)
+logger = logging.getLogger("bot")
 
 WEBHOOK_PATH = "/telegram/webhook"
 
 WEBHOOK_SECRET = os.getenv(
     "WEBHOOK_SECRET",
     "",
-)
+).strip()
 
 telegram_app = Application.builder().token(Config.BOT_TOKEN).build()
 
@@ -112,14 +111,12 @@ async def send_calendar_notifications(
     new_items,
     updated_items,
 ):
-
     users = get_notification_users()
 
     if not users:
         return
 
     for calendar in new_items:
-
         title = calendar.get(
             "title",
             "Academic Calendar",
@@ -151,9 +148,7 @@ async def send_calendar_notifications(
         markup = InlineKeyboardMarkup(keyboard) if keyboard else None
 
         for telegram_id in users:
-
             try:
-
                 await context.bot.send_message(
                     chat_id=telegram_id,
                     text=text,
@@ -161,7 +156,6 @@ async def send_calendar_notifications(
                 )
 
             except Exception as error:
-
                 logger.warning(
                     "New calendar notification failed for %s: %s",
                     telegram_id,
@@ -169,7 +163,6 @@ async def send_calendar_notifications(
                 )
 
     for calendar in updated_items:
-
         title = calendar.get(
             "title",
             "Academic Calendar",
@@ -201,9 +194,7 @@ async def send_calendar_notifications(
         markup = InlineKeyboardMarkup(keyboard) if keyboard else None
 
         for telegram_id in users:
-
             try:
-
                 await context.bot.send_message(
                     chat_id=telegram_id,
                     text=text,
@@ -211,7 +202,6 @@ async def send_calendar_notifications(
                 )
 
             except Exception as error:
-
                 logger.warning(
                     "Updated calendar notification failed for %s: %s",
                     telegram_id,
@@ -222,9 +212,7 @@ async def send_calendar_notifications(
 async def calendar_update_job(
     context: ContextTypes.DEFAULT_TYPE,
 ):
-
     try:
-
         initialized = get_setting(
             "CALENDAR_INITIALIZED",
             0,
@@ -243,7 +231,6 @@ async def calendar_update_job(
         )
 
         if not initialized:
-
             update_setting(
                 "CALENDAR_INITIALIZED",
                 1,
@@ -263,7 +250,6 @@ async def calendar_update_job(
         )
 
     except Exception as error:
-
         logger.error(
             "Academic calendar sync failed: %s",
             error,
@@ -510,20 +496,16 @@ async def error_handler(
     update: object,
     context: ContextTypes.DEFAULT_TYPE,
 ):
-
     logger.error(
         "Exception while handling an update:",
         exc_info=context.error,
     )
 
     if isinstance(update, Update) and update.message:
-
         try:
-
             await update.message.reply_text(
                 "⚠️ Something went wrong. " "Please try again or type /start."
             )
-
         except Exception:
             pass
 
@@ -532,7 +514,6 @@ async def error_handler(
 async def lifespan(
     fastapi_app: FastAPI,
 ):
-
     Config.validate()
 
     init_db()
@@ -546,7 +527,6 @@ async def lifespan(
     await telegram_app.start()
 
     if telegram_app.job_queue:
-
         telegram_app.job_queue.run_repeating(
             calendar_update_job,
             interval=1800,
@@ -559,25 +539,37 @@ async def lifespan(
     render_url = os.getenv("RENDER_EXTERNAL_URL")
 
     if not render_url:
-
         raise RuntimeError("RENDER_EXTERNAL_URL is not available.")
 
     webhook_url = render_url.rstrip("/") + WEBHOOK_PATH
 
     webhook_args = {
         "url": webhook_url,
-        "drop_pending_updates": True,
+        "drop_pending_updates": False,
     }
 
     if WEBHOOK_SECRET:
-
         webhook_args["secret_token"] = WEBHOOK_SECRET
 
-    await telegram_app.bot.set_webhook(**webhook_args)
+    webhook_result = await telegram_app.bot.set_webhook(**webhook_args)
 
     logger.info(
         "Webhook configured: %s",
         webhook_url,
+    )
+
+    logger.info(
+        "Webhook set result: %s",
+        webhook_result,
+    )
+
+    webhook_info = await telegram_app.bot.get_webhook_info()
+
+    logger.info(
+        "Webhook info: url=%s pending=%s last_error=%s",
+        webhook_info.url,
+        webhook_info.pending_update_count,
+        webhook_info.last_error_message,
     )
 
     logger.info("UIU Smart Assistant is running...")
@@ -585,25 +577,20 @@ async def lifespan(
     yield
 
     try:
-
-        await telegram_app.bot.delete_webhook()
-
-    except Exception:
-        pass
-
-    try:
-
         await telegram_app.stop()
-
-    except Exception:
-        pass
+    except Exception as error:
+        logger.warning(
+            "Telegram application stop error: %s",
+            error,
+        )
 
     try:
-
         await telegram_app.shutdown()
-
-    except Exception:
-        pass
+    except Exception as error:
+        logger.warning(
+            "Telegram application shutdown error: %s",
+            error,
+        )
 
 
 app = FastAPI(lifespan=lifespan)
@@ -611,7 +598,6 @@ app = FastAPI(lifespan=lifespan)
 
 @app.get("/")
 async def root():
-
     return {
         "status": "online",
         "service": "UIU Smart Assistant",
@@ -620,7 +606,6 @@ async def root():
 
 @app.get("/health")
 async def health():
-
     return {
         "status": "ok",
         "telegram": "webhook",
@@ -629,16 +614,15 @@ async def health():
 
 
 @app.post(WEBHOOK_PATH)
-async def telegram_webhook(request: Request):
-
+async def telegram_webhook(
+    request: Request,
+):
     logger.info("=== TELEGRAM WEBHOOK RECEIVED ===")
 
     if WEBHOOK_SECRET:
-
         received_secret = request.headers.get("X-Telegram-Bot-Api-Secret-Token")
 
         if received_secret != WEBHOOK_SECRET:
-
             logger.error("Invalid Telegram webhook secret")
 
             raise HTTPException(
@@ -647,12 +631,13 @@ async def telegram_webhook(request: Request):
             )
 
     try:
-
         data = await request.json()
+
+        update_id = data.get("update_id")
 
         logger.info(
             "Telegram update received: %s",
-            data.get("update_id"),
+            update_id,
         )
 
         update = Update.de_json(
@@ -660,18 +645,26 @@ async def telegram_webhook(request: Request):
             telegram_app.bot,
         )
 
-        if update:
+        if update is None:
+            logger.warning("Received empty Telegram update.")
 
-            logger.info("Processing Telegram update...")
+            return {"ok": True}
 
-            await telegram_app.process_update(update)
+        logger.info(
+            "Processing Telegram update: %s",
+            update_id,
+        )
 
-            logger.info("Telegram update processed successfully")
+        await telegram_app.process_update(update)
+
+        logger.info(
+            "Telegram update processed successfully: %s",
+            update_id,
+        )
 
         return {"ok": True}
 
     except Exception as error:
-
         logger.error(
             "Telegram webhook error: %s",
             error,
@@ -685,7 +678,6 @@ async def telegram_webhook(request: Request):
 
 
 if __name__ == "__main__":
-
     import uvicorn
 
     port = int(
