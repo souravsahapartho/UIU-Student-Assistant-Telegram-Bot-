@@ -106,7 +106,7 @@ async def about(
         "A student-focused Telegram assistant for "
         "United International University.\n\n"
         "Version 2.0.0\n\n"
-        "👨‍💻 **Developer:** Sourav Saha Partho\n"
+        "👨‍💻 **Developer:** Sourav Saha\n"
         "📧 **Contact:** im@sourav.com.bd\n\n"
         "*Disclaimer:* Fee and academic policy information "
         "may change. Please verify important decisions with "
