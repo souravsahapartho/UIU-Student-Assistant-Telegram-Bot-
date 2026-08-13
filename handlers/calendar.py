@@ -5,13 +5,19 @@ from telegram import (
     InlineKeyboardButton,
     InlineKeyboardMarkup,
 )
+
 from telegram.ext import ContextTypes
 
-from services.calendar_service import fetch_calendars
+from services.calendar_service import (
+    fetch_calendars,
+)
 
 
 def get_year(calendar):
-    year = calendar.get("year", "")
+    year = calendar.get(
+        "year",
+        "",
+    )
 
     if year:
         return year
@@ -26,67 +32,72 @@ def get_year(calendar):
         title,
     )
 
-    return match.group(0) if match else ""
+    if match:
+        return match.group(0)
+
+    return ""
 
 
 def get_button_title(title):
-    clean_title = re.sub(
+    title = re.sub(
         r"\s+",
         " ",
         title,
     ).strip()
 
-    clean_title = re.sub(
+    clean = re.sub(
         r"\s*\[Revised\]\s*$",
         "",
-        clean_title,
+        title,
         flags=re.IGNORECASE,
     ).strip()
 
     year_match = re.search(
         r"\b20\d{2}\b",
-        clean_title,
+        clean,
     )
 
     year = year_match.group(0) if year_match else ""
 
-    if "pharmacy" in clean_title.lower():
-        if "fall" in clean_title.lower():
+    lower = clean.lower()
+
+    if "pharmacy" in lower:
+        if "fall" in lower:
             return f"Pharmacy — Fall {year} Semester"
 
-        if "spring" in clean_title.lower():
+        if "spring" in lower:
             return f"Pharmacy — Spring {year} Semester"
 
-        if "summer" in clean_title.lower():
+        if "summer" in lower:
             return f"Pharmacy — Summer {year} Semester"
 
         return f"Pharmacy — {year}"
 
-    if "undergraduate" in clean_title.lower():
-        if "summer" in clean_title.lower():
-            return f"Undergraduate — Summer {year} Trimester"
+    if "undergraduate" in lower:
+        if "summer" in lower:
+            return f"Undergraduate — " f"Summer {year} Trimester"
 
-        if "spring" in clean_title.lower():
-            return f"Undergraduate — Spring {year} Trimester"
+        if "spring" in lower:
+            return f"Undergraduate — " f"Spring {year} Trimester"
 
-        if "fall" in clean_title.lower():
-            return f"Undergraduate — Fall {year} Trimester"
+        if "fall" in lower:
+            return f"Undergraduate — " f"Fall {year} Trimester"
 
         return f"Undergraduate — {year}"
 
-    if "graduate" in clean_title.lower():
-        if "summer" in clean_title.lower():
-            return f"Graduate — Summer {year} Trimester"
+    if "graduate" in lower:
+        if "summer" in lower:
+            return f"Graduate — " f"Summer {year} Trimester"
 
-        if "spring" in clean_title.lower():
-            return f"Graduate — Spring {year} Trimester"
+        if "spring" in lower:
+            return f"Graduate — " f"Spring {year} Trimester"
 
-        if "fall" in clean_title.lower():
-            return f"Graduate — Fall {year} Trimester"
+        if "fall" in lower:
+            return f"Graduate — " f"Fall {year} Trimester"
 
         return f"Graduate — {year}"
 
-    return clean_title
+    return clean
 
 
 async def academic_calendar(
@@ -111,13 +122,12 @@ async def academic_calendar(
 
     calendars = calendars[:5]
 
-    text_parts = [
-        "📅 <b>Academic Calendar</b>",
-        "",
-        "📌 Tap the button below each calendar to view the official UIU page.",
-    ]
-
-    keyboard = []
+    await message.reply_text(
+        "📅 <b>Academic Calendar</b>\n\n"
+        "📌 Tap a calendar button to view "
+        "the official UIU page.",
+        parse_mode="HTML",
+    )
 
     for index, calendar in enumerate(
         calendars,
@@ -128,22 +138,18 @@ async def academic_calendar(
             "Academic Calendar",
         )
 
+        year = get_year(calendar)
+
         url = calendar.get(
             "url",
             "",
         )
 
-        year = get_year(calendar)
-
         button_title = get_button_title(title)
 
-        text_parts.extend(
-            [
-                "",
-                f"<b>{index}. {title}</b>",
-                f"📅 {year}",
-            ]
-        )
+        text = f"<b>{index}. {title}</b>\n" f"📅 {year}"
+
+        keyboard = []
 
         if url:
             keyboard.append(
@@ -155,9 +161,9 @@ async def academic_calendar(
                 ]
             )
 
-    await message.reply_text(
-        "\n".join(text_parts),
-        reply_markup=InlineKeyboardMarkup(keyboard),
-        parse_mode="HTML",
-        disable_web_page_preview=True,
-    )
+        await message.reply_text(
+            text,
+            reply_markup=InlineKeyboardMarkup(keyboard),
+            parse_mode="HTML",
+            disable_web_page_preview=True,
+        )
