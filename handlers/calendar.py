@@ -1,3 +1,5 @@
+import re
+
 from telegram import (
     InlineKeyboardButton,
     InlineKeyboardMarkup,
@@ -9,6 +11,90 @@ from telegram.ext import ContextTypes
 from services.calendar_service import (
     get_latest_calendars,
 )
+
+
+def get_calendar_button_name(title: str) -> str:
+    """
+    Convert the full UIU calendar title into a short,
+    user-friendly button name.
+    """
+
+    title = re.sub(
+        r"\s+",
+        " ",
+        title or "",
+    ).strip()
+
+    # Remove [Revised] from button name
+    clean_title = re.sub(
+        r"\s*\[Revised\]\s*$",
+        "",
+        title,
+        flags=re.IGNORECASE,
+    ).strip()
+
+    lower = clean_title.lower()
+
+    # Extract year
+    year_match = re.search(
+        r"\b20\d{2}\b",
+        clean_title,
+    )
+
+    year = year_match.group(0) if year_match else ""
+
+    # --------------------------------
+    # Pharmacy
+    # --------------------------------
+    if "pharmacy" in lower:
+
+        if "fall" in lower:
+            return f"Pharmacy — Fall {year} Semester"
+
+        if "spring" in lower:
+            return f"Pharmacy — Spring {year} Semester"
+
+        if "summer" in lower:
+            return f"Pharmacy — Summer {year} Semester"
+
+        return f"Pharmacy — {year}"
+
+    # --------------------------------
+    # Undergraduate
+    # --------------------------------
+    if "undergraduate" in lower:
+
+        if "summer" in lower:
+            return f"Summer {year} Trimester Undergraduate"
+
+        if "spring" in lower:
+            return f"Spring {year} Trimester Undergraduate"
+
+        if "fall" in lower:
+            return f"Fall {year} Trimester Undergraduate"
+
+        return f"{year} Undergraduate"
+
+    # --------------------------------
+    # Graduate
+    # --------------------------------
+    if "graduate" in lower:
+
+        if "summer" in lower:
+            return f"Summer {year} Trimester Graduate"
+
+        if "spring" in lower:
+            return f"Spring {year} Trimester Graduate"
+
+        if "fall" in lower:
+            return f"Fall {year} Trimester Graduate"
+
+        return f"{year} Graduate"
+
+    # --------------------------------
+    # Fallback
+    # --------------------------------
+    return clean_title
 
 
 async def academic_calendar(
@@ -25,7 +111,11 @@ async def academic_calendar(
             await update.message.reply_text("⚠️ No academic calendars found right now.")
             return
 
-        text = "📅 <b>Academic Calendar</b>\n\n"
+        text = (
+            "📅 <b>Academic Calendar</b>\n\n"
+            "📌 Tap the button below each calendar "
+            "to open the original UIU page.\n"
+        )
 
         buttons = []
 
@@ -33,22 +123,34 @@ async def academic_calendar(
             calendars,
             start=1,
         ):
-            title = calendar["title"]
-            year = calendar["year"]
-            url = calendar["url"]
-
-            text += f"<b>{index}. {title}</b>\n" f"📅 {year}\n\n"
-
-            buttons.append(
-                [
-                    InlineKeyboardButton(
-                        f"📄 {index}. View Calendar ↗",
-                        url=url,
-                    )
-                ]
+            title = calendar.get(
+                "title",
+                "Academic Calendar",
             )
 
-        text += "🔗 Each button opens the " "original UIU calendar page."
+            year = calendar.get(
+                "year",
+                "",
+            )
+
+            url = calendar.get(
+                "url",
+                "",
+            )
+
+            button_name = get_calendar_button_name(title)
+
+            text += f"\n<b>{index}. {title}</b>\n" f"📅 {year}\n"
+
+            if url:
+                buttons.append(
+                    [
+                        InlineKeyboardButton(
+                            f"📄 {button_name} ↗",
+                            url=url,
+                        )
+                    ]
+                )
 
         await update.message.reply_text(
             text,
