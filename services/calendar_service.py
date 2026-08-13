@@ -24,7 +24,10 @@ HEADERS = {
 }
 
 
-def clean_text(text):
+def clean_text(
+    text,
+):
+
     text = re.sub(
         r"\s+",
         " ",
@@ -34,14 +37,18 @@ def clean_text(text):
     return text.strip()
 
 
-def make_hash(text):
+def make_hash(
+    text,
+):
+
     return hashlib.sha256(text.encode("utf-8")).hexdigest()
 
 
 async def fetch_calendar_page():
+
     timeout = httpx.Timeout(
-        30.0,
-        connect=15.0,
+        15.0,
+        connect=8.0,
     )
 
     async with httpx.AsyncClient(
@@ -57,7 +64,10 @@ async def fetch_calendar_page():
         return response.text
 
 
-def parse_calendars(html):
+def parse_calendars(
+    html,
+):
+
     soup = BeautifulSoup(
         html,
         "html.parser",
@@ -77,6 +87,7 @@ def parse_calendars(html):
             "h6",
         ]
     ):
+
         title = clean_text(
             heading.get_text(
                 " ",
@@ -99,6 +110,7 @@ def parse_calendars(html):
         parent = heading.parent
 
         if parent:
+
             candidates.append(
                 (
                     heading,
@@ -115,9 +127,11 @@ def parse_calendars(html):
         )
 
         if not links:
+
             next_parent = parent.parent
 
             if next_parent:
+
                 links = next_parent.find_all(
                     "a",
                     href=True,
@@ -144,10 +158,13 @@ def parse_calendars(html):
             lower_url = full_url.lower()
 
             if ".pdf" in lower_url:
+
                 pdf_url = full_url
+
                 break
 
             if "/academics/calendar/" in full_url:
+
                 page_url = full_url
 
         url = page_url or pdf_url
@@ -179,21 +196,25 @@ def parse_calendars(html):
     unique = {}
 
     for item in results:
+
         unique[item["url"]] = item
 
     return list(unique.values())
 
 
 async def fetch_calendars():
+
     html = await fetch_calendar_page()
 
     return parse_calendars(html)
 
 
 async def sync_calendars():
+
     calendars = await fetch_calendars()
 
     new_items = []
+
     updated_items = []
 
     for calendar in calendars:

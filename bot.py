@@ -1,3 +1,4 @@
+import asyncio
 import logging
 import os
 from contextlib import asynccontextmanager
@@ -16,6 +17,7 @@ from telegram.ext import (
     MessageHandler,
     ConversationHandler,
     ContextTypes,
+    CallbackQueryHandler,
     filters,
 )
 
@@ -24,6 +26,8 @@ from config import Config
 from database import (
     init_db,
     get_notification_users,
+    get_setting,
+    update_setting,
 )
 
 from states import (
@@ -52,6 +56,11 @@ from handlers.general import (
     show_help,
     handle_cancel,
     show_not_implemented,
+    academic_info,
+    academic_info_callback,
+    settings_menu,
+    settings_callback,
+    notices,
 )
 
 from handlers.cgpa import (
@@ -82,7 +91,9 @@ from handlers.calendar import academic_calendar
 
 from handlers.admin import admin_panel
 
-from services.calendar_service import sync_calendars
+from services.calendar_service import (
+    sync_calendars,
+)
 
 logging.basicConfig(
     format="%(asctime)s - %(name)s - %(levelname)s - %(message)s",
@@ -105,7 +116,22 @@ async def calendar_update_job(
     context: ContextTypes.DEFAULT_TYPE,
 ):
     try:
+        initialized = get_setting(
+            "CALENDAR_INITIALIZED",
+            0,
+        )
+
         result = await sync_calendars()
+
+        if not initialized:
+            update_setting(
+                "CALENDAR_INITIALIZED",
+                1,
+            )
+
+            logger.info("Academic calendar initialized without notifications.")
+
+            return
 
         new_items = result.get(
             "new",
@@ -147,7 +173,6 @@ async def calendar_update_job(
             for telegram_id in users:
 
                 try:
-
                     await context.bot.send_message(
                         chat_id=telegram_id,
                         text=text,
@@ -155,7 +180,6 @@ async def calendar_update_job(
                     )
 
                 except Exception as error:
-
                     logger.warning(
                         "Calendar notification failed for %s: %s",
                         telegram_id,
@@ -184,7 +208,6 @@ async def calendar_update_job(
             for telegram_id in users:
 
                 try:
-
                     await context.bot.send_message(
                         chat_id=telegram_id,
                         text=text,
@@ -192,7 +215,6 @@ async def calendar_update_job(
                     )
 
                 except Exception as error:
-
                     logger.warning(
                         "Calendar update notification failed for %s: %s",
                         telegram_id,
@@ -367,6 +389,13 @@ def setup_handlers():
 
     telegram_app.add_handler(
         MessageHandler(
+            filters.Regex("^📚 Academic Info$"),
+            academic_info,
+        )
+    )
+
+    telegram_app.add_handler(
+        MessageHandler(
             filters.Regex("^🔗 Important Links$"),
             show_links,
         )
@@ -374,8 +403,8 @@ def setup_handlers():
 
     telegram_app.add_handler(
         MessageHandler(
-            filters.Regex("^👤 About$"),
-            show_about,
+            filters.Regex("^📢 Notices$"),
+            notices,
         )
     )
 
@@ -395,6 +424,20 @@ def setup_handlers():
 
     telegram_app.add_handler(
         MessageHandler(
+            filters.Regex("^⚙️ Settings$"),
+            settings_menu,
+        )
+    )
+
+    telegram_app.add_handler(
+        MessageHandler(
+            filters.Regex("^👤 About$"),
+            show_about,
+        )
+    )
+
+    telegram_app.add_handler(
+        MessageHandler(
             filters.Regex("^❌ Cancel$"),
             handle_cancel,
         )
@@ -402,10 +445,22 @@ def setup_handlers():
 
     telegram_app.add_handler(
         MessageHandler(
-            filters.Regex(
-                "^(🎁 Scholarship Calculator|📚 Academic Info|📢 Notices|⚙️ Settings)$"
-            ),
+            filters.Regex("^(🎁 Scholarship Calculator)$"),
             show_not_implemented,
+        )
+    )
+
+    telegram_app.add_handler(
+        CallbackQueryHandler(
+            academic_info_callback,
+            pattern="^acad_",
+        )
+    )
+
+    telegram_app.add_handler(
+        CallbackQueryHandler(
+            settings_callback,
+            pattern="^toggle_alerts$",
         )
     )
 
@@ -414,6 +469,7 @@ async def error_handler(
     update: object,
     context: ContextTypes.DEFAULT_TYPE,
 ):
+
     logger.error(
         "Exception while handling an update:",
         exc_info=context.error,
@@ -459,7 +515,7 @@ async def lifespan(
         telegram_app.job_queue.run_repeating(
             calendar_update_job,
             interval=1800,
-            first=60,
+            first=10,
             name="academic-calendar-check",
         )
 
@@ -566,7 +622,7 @@ async def telegram_webhook(
             telegram_app.bot,
         )
 
-        await telegram_app.process_update(update)
+        asyncio.create_task(telegram_app.process_update(update))
 
         return {"ok": True}
 
