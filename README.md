@@ -1,6 +1,6 @@
-# 🎓 UIU Smart Assistant
+# 🎓 UIU Student Assistant
 
-**UIU Smart Assistant** is a Telegram bot built to make everyday academic tasks easier for students of **United International University (UIU)**.
+**UIU Student Assistant** is a Telegram bot built to make everyday academic tasks easier for students of **United International University (UIU)**.
 
 The idea behind the project is simple: instead of checking different websites, doing calculations manually, or going through the same information repeatedly, students can get many useful academic tools and resources directly from Telegram.
 
@@ -69,7 +69,7 @@ For example:
 
 ```text
 18
-````
+```
 
 The provided number is then used in the calculation.
 
@@ -147,9 +147,9 @@ The system checks the relevant eligibility requirements before estimating the sc
 
 The scholarship estimator also shows an approximate confidence level:
 
-* Low
-* Medium
-* High
+- Low
+- Medium
+- High
 
 If the user provides more useful information, such as an estimated number of higher-GPA students, the system has more information to work with.
 
@@ -163,11 +163,11 @@ The scholarship calculator is only an **approximate statistical estimator**.
 
 It is **not**:
 
-* An official UIU ranking system
-* An exact ranking calculator
-* A guaranteed scholarship prediction
-* An official scholarship probability calculator
-* A replacement for UIU's actual scholarship decision
+- An official UIU ranking system
+- An exact ranking calculator
+- A guaranteed scholarship prediction
+- An official scholarship probability calculator
+- A replacement for UIU's actual scholarship decision
 
 Final scholarship decisions are made by UIU according to the university's applicable rules and the actual academic performance of students.
 
@@ -175,11 +175,11 @@ Students should always check the latest official UIU rules before making decisio
 
 The estimator also considers applicable course and credit restrictions, including exclusions such as:
 
-* Thesis
-* Project
-* Internship
-* Retake
-* Repeat courses
+- Thesis
+- Project
+- Internship
+- Retake
+- Repeat courses
 
 where applicable.
 
@@ -195,11 +195,11 @@ Currently available sections include:
 
 Provides a simple explanation of:
 
-* Credit hours
-* Theory course credits
-* Laboratory course credits
-* Project / thesis credits
-* Degree completion requirements
+- Credit hours
+- Theory course credits
+- Laboratory course credits
+- Project / thesis credits
+- Degree completion requirements
 
 The bot also reminds users that exact credit requirements may vary depending on the program and curriculum.
 
@@ -209,11 +209,11 @@ The bot also reminds users that exact credit requirements may vary depending on 
 
 Provides information about UIU's retake policy, including:
 
-* First-time retake discount
-* Retake registration
-* Academic record considerations
-* Possible CGPA effects
-* Important points to verify before registration
+- First-time retake discount
+- Retake registration
+- Academic record considerations
+- Possible CGPA effects
+- Important points to verify before registration
 
 ---
 
@@ -223,8 +223,8 @@ Provides direct access to the UIU registration portals.
 
 The bot includes:
 
-* UCam Cloud
-* UCam — UIU
+- UCam Cloud
+- UCam — UIU
 
 Users can simply tap the appropriate button and open the registration portal.
 
@@ -252,9 +252,9 @@ Instead of making users type complicated commands, most features are accessible 
 
 For multi-step features such as:
 
-* CGPA calculation
-* Fee calculation
-* Scholarship estimation
+- CGPA calculation
+- Fee calculation
+- Scholarship estimation
 
 the bot asks only for the information it actually needs.
 
@@ -307,13 +307,13 @@ This is the main entry point of the application.
 
 It is responsible for:
 
-* Starting FastAPI
-* Initializing the Telegram bot
-* Registering handlers
-* Configuring the webhook
-* Starting scheduled tasks
-* Managing application startup and shutdown
-* Providing the health endpoint
+- Starting FastAPI
+- Initializing the Telegram bot
+- Registering handlers
+- Configuring the webhook
+- Starting scheduled tasks
+- Managing application startup and shutdown
+- Providing the health endpoint
 
 ---
 
@@ -602,7 +602,7 @@ TiDB tables initialized successfully.
 Application started.
 Academic calendar checker started.
 Local mode detected. Webhook configuration skipped.
-UIU Smart Assistant is running.
+UIU Student Assistant is running.
 Application startup complete.
 ```
 
@@ -822,12 +822,12 @@ __pycache__/
 
 Never expose:
 
-* Telegram Bot Token
-* TiDB Password
-* Database credentials
-* API keys
-* SMTP credentials
-* JWT secrets
+- Telegram Bot Token
+- TiDB Password
+- Database credentials
+- API keys
+- SMTP credentials
+- JWT secrets
 
 If a Telegram bot token or another secret is accidentally exposed, revoke or rotate it immediately.
 
@@ -935,17 +935,17 @@ The project is still being developed, so there are several things that can be ad
 
 Some possible improvements include:
 
-* 👤 Student profiles
-* 📊 CGPA history
-* 💰 Fee calculation history
-* 🎓 Scholarship estimation history
-* 📚 Course planning
-* 📅 Semester planning
-* 🔔 Academic notifications
-* 📢 UIU announcement monitoring
-* 📈 More detailed academic statistics
-* 👨‍💼 Improved admin analytics
-* 🔗 More UIU service integrations
+- 👤 Student profiles
+- 📊 CGPA history
+- 💰 Fee calculation history
+- 🎓 Scholarship estimation history
+- 📚 Course planning
+- 📅 Semester planning
+- 🔔 Academic notifications
+- 📢 UIU announcement monitoring
+- 📈 More detailed academic statistics
+- 👨‍💼 Improved admin analytics
+- 🔗 More UIU service integrations
 
 ---
 
@@ -957,10 +957,10 @@ If enough reliable historical data becomes available in the future, the estimato
 
 Possible approaches could include:
 
-* Logistic Regression
-* Random Forest
-* Gradient Boosting
-* XGBoost
+- Logistic Regression
+- Random Forest
+- Gradient Boosting
+- XGBoost
 
 However, using Machine Learning would only make sense if there is enough reliable and representative data.
 
@@ -970,19 +970,19 @@ For now, the statistical approach keeps the system easier to understand and more
 
 # ⚠️ Accuracy Notice
 
-UIU Smart Assistant is an independent student project.
+UIU Student Assistant is an independent student project.
 
 The information and calculations provided by the bot should not replace official information from UIU.
 
 Students should verify important information directly with the university, especially for:
 
-* Scholarship decisions
-* Course registration
-* Tuition fees
-* Academic regulations
-* Graduation requirements
-* Course prerequisites
-* Credit requirements
+- Scholarship decisions
+- Course registration
+- Tuition fees
+- Academic regulations
+- Graduation requirements
+- Course prerequisites
+- Credit requirements
 
 The bot intentionally presents estimated results as estimates instead of claiming that they are official decisions.
 
@@ -1041,16 +1041,16 @@ This project was built with the goal of making commonly used academic tasks and 
 
 This project uses:
 
-* 🐍 Python
-* 🤖 python-telegram-bot
-* ⚡ FastAPI
-* 🚀 Uvicorn
-* 🗄️ TiDB Cloud
-* 🌐 HTTPX
-* 📰 Feedparser
-* 🔎 BeautifulSoup4
-* ⏰ APScheduler
-* ☁️ Render
+- 🐍 Python
+- 🤖 python-telegram-bot
+- ⚡ FastAPI
+- 🚀 Uvicorn
+- 🗄️ TiDB Cloud
+- 🌐 HTTPX
+- 📰 Feedparser
+- 🔎 BeautifulSoup4
+- ⏰ APScheduler
+- ☁️ Render
 
 ---
 
@@ -1062,19 +1062,19 @@ The project is still evolving, and new features, improvements, and fixes may be 
 
 Current areas of development include:
 
-* Academic utilities
-* Scholarship estimation
-* Database reliability
-* User experience
-* Automation
-* Admin features
-* Production stability
+- Academic utilities
+- Scholarship estimation
+- Database reliability
+- User experience
+- Automation
+- Admin features
+- Production stability
 
 ---
 
 # 🎯 Final Note
 
-The main idea behind UIU Smart Assistant is simple:
+The main idea behind UIU Student Assistant is simple:
 
 > **Make useful academic tools available to UIU students from one familiar place — Telegram.**
 
@@ -1083,7 +1083,7 @@ Whether a student wants to calculate CGPA, estimate trimester fees, check academ
 ---
 
 <p align="center">
-  <strong>🎓 UIU Smart Assistant</strong>
+  <strong>🎓 UIU Student Assistant</strong>
   <br>
   Built for UIU students.
 </p>
