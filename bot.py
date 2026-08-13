@@ -3,7 +3,7 @@ import os
 from contextlib import asynccontextmanager
 
 from fastapi import FastAPI, Request, HTTPException
-from telegram import Update
+from telegram import Update, InlineKeyboardButton, InlineKeyboardMarkup
 from telegram.ext import (
     Application,
     CommandHandler,
@@ -14,7 +14,10 @@ from telegram.ext import (
 )
 
 from config import Config
-from database import init_db
+from database import (
+    init_db,
+    get_all_users,
+)
 
 from states import (
     CGPA_MENU_CHOICE,
@@ -68,7 +71,10 @@ from handlers.fee import (
     fee_cancel,
 )
 
+from handlers.calendar import academic_calendar
 from handlers.admin import admin_panel
+
+from services.calendar_service import sync_calendars
 
 logging.basicConfig(
     format="%(asctime)s - %(name)s - %(levelname)s - %(message)s",
@@ -81,6 +87,94 @@ WEBHOOK_PATH = "/telegram/webhook"
 WEBHOOK_SECRET = os.getenv("WEBHOOK_SECRET", "")
 
 telegram_app = Application.builder().token(Config.BOT_TOKEN).build()
+
+
+async def calendar_update_job(
+    context: ContextTypes.DEFAULT_TYPE,
+):
+    try:
+        result = await sync_calendars()
+
+        new_items = result.get("new", [])
+        updated_items = result.get("updated", [])
+
+        if not new_items and not updated_items:
+            return
+
+        users = get_all_users()
+
+        for calendar in new_items:
+
+            text = (
+                "🔔 New Academic Calendar\n\n"
+                f"📅 {calendar['title']}\n\n"
+                "UIU has published a new academic calendar."
+            )
+
+            keyboard = [
+                [
+                    InlineKeyboardButton(
+                        "📄 View Calendar",
+                        url=calendar["url"],
+                    )
+                ]
+            ]
+
+            for telegram_id in users:
+
+                try:
+                    await context.bot.send_message(
+                        chat_id=telegram_id,
+                        text=text,
+                        reply_markup=InlineKeyboardMarkup(keyboard),
+                    )
+
+                except Exception as error:
+                    logger.warning(
+                        "Failed to notify user %s: %s",
+                        telegram_id,
+                        error,
+                    )
+
+        for calendar in updated_items:
+
+            text = (
+                "🔄 Academic Calendar Updated\n\n"
+                f"📅 {calendar['title']}\n\n"
+                "UIU has updated or revised this academic calendar."
+            )
+
+            keyboard = [
+                [
+                    InlineKeyboardButton(
+                        "📄 View Updated Calendar",
+                        url=calendar["url"],
+                    )
+                ]
+            ]
+
+            for telegram_id in users:
+
+                try:
+                    await context.bot.send_message(
+                        chat_id=telegram_id,
+                        text=text,
+                        reply_markup=InlineKeyboardMarkup(keyboard),
+                    )
+
+                except Exception as error:
+                    logger.warning(
+                        "Failed to notify user %s: %s",
+                        telegram_id,
+                        error,
+                    )
+
+    except Exception as error:
+        logger.error(
+            "Academic calendar sync failed: %s",
+            error,
+            exc_info=True,
+        )
 
 
 def setup_handlers():
@@ -256,6 +350,13 @@ def setup_handlers():
 
     telegram_app.add_handler(
         MessageHandler(
+            filters.Regex("^📅 Academic Calendar$"),
+            academic_calendar,
+        )
+    )
+
+    telegram_app.add_handler(
+        MessageHandler(
             filters.Regex("^❓ Help$"),
             show_help,
         )
@@ -271,7 +372,7 @@ def setup_handlers():
     telegram_app.add_handler(
         MessageHandler(
             filters.Regex(
-                "^(🎁 Scholarship Calculator|📚 Academic Info|📅 Academic Calendar|📢 Notices|⚙️ Settings)$"
+                "^(🎁 Scholarship Calculator|📚 Academic Info|📢 Notices|⚙️ Settings)$"
             ),
             show_not_implemented,
         )
@@ -311,6 +412,18 @@ async def lifespan(app: FastAPI):
 
     await telegram_app.start()
 
+    if telegram_app.job_queue:
+        telegram_app.job_queue.run_repeating(
+            calendar_update_job,
+            interval=1800,
+            first=60,
+            name="academic-calendar-check",
+        )
+    else:
+        logger.error(
+            "JobQueue is not available. " "Install python-telegram-bot[job-queue]."
+        )
+
     render_url = os.getenv("RENDER_EXTERNAL_URL")
 
     if not render_url:
@@ -332,6 +445,8 @@ async def lifespan(app: FastAPI):
         "Telegram webhook configured: %s",
         webhook_url,
     )
+
+    logger.info("Academic Calendar checker started.")
 
     logger.info("UIU Smart Assistant is running...")
 
@@ -360,7 +475,7 @@ app = FastAPI(lifespan=lifespan)
 async def root():
     return {
         "status": "online",
-        "service": "UIU Student Assistant",
+        "service": "UIU Smart Assistant",
     }
 
 
@@ -369,6 +484,7 @@ async def health():
     return {
         "status": "ok",
         "telegram": "webhook",
+        "calendar_checker": "active",
     }
 
 
@@ -402,7 +518,7 @@ async def telegram_webhook(
     except Exception as error:
 
         logger.error(
-            "Webhook error: %s",
+            "Webhook processing error: %s",
             error,
             exc_info=True,
         )

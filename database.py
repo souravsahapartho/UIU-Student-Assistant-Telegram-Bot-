@@ -1,14 +1,14 @@
 import sqlite3
-from typing import List, Any, Optional
-import logging
+from typing import Any, Optional
 
 DB_NAME = "uiu_assistant.db"
 
-logger = logging.getLogger(__name__)
-
 
 def get_connection():
-    conn = sqlite3.connect(DB_NAME)
+    conn = sqlite3.connect(
+        DB_NAME,
+        timeout=30,
+    )
     conn.row_factory = sqlite3.Row
     return conn
 
@@ -24,17 +24,9 @@ def init_db():
             first_name TEXT,
             username TEXT,
             created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
-            last_active TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
-            notifications_enabled INTEGER DEFAULT 1
+            last_active TIMESTAMP DEFAULT CURRENT_TIMESTAMP
         )
-    """)
-
-    try:
-        cursor.execute(
-            "ALTER TABLE users ADD COLUMN notifications_enabled " "INTEGER DEFAULT 1"
-        )
-    except sqlite3.OperationalError:
-        pass
+        """)
 
     cursor.execute("""
         CREATE TABLE IF NOT EXISTS settings (
@@ -42,17 +34,29 @@ def init_db():
             value TEXT,
             updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
         )
-    """)
+        """)
 
     cursor.execute("""
         CREATE TABLE IF NOT EXISTS notices (
             id INTEGER PRIMARY KEY AUTOINCREMENT,
-            title TEXT UNIQUE,
-            link TEXT,
-            published_date TEXT,
+            title TEXT,
+            description TEXT,
+            url TEXT,
             created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
         )
-    """)
+        """)
+
+    cursor.execute("""
+        CREATE TABLE IF NOT EXISTS academic_calendars (
+            id INTEGER PRIMARY KEY AUTOINCREMENT,
+            title TEXT NOT NULL,
+            url TEXT UNIQUE NOT NULL,
+            content_hash TEXT NOT NULL,
+            content TEXT,
+            created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+            updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
+        )
+        """)
 
     conn.commit()
     conn.close()
@@ -97,22 +101,7 @@ def get_all_users():
     cursor.execute("""
         SELECT telegram_id
         FROM users
-        """)
-
-    rows = cursor.fetchall()
-    conn.close()
-
-    return rows
-
-
-def get_all_subscribers() -> List[int]:
-    conn = get_connection()
-    cursor = conn.cursor()
-
-    cursor.execute("""
-        SELECT telegram_id
-        FROM users
-        WHERE notifications_enabled = 1
+        WHERE telegram_id IS NOT NULL
         """)
 
     rows = cursor.fetchall()
@@ -121,128 +110,15 @@ def get_all_subscribers() -> List[int]:
     return [row["telegram_id"] for row in rows]
 
 
-def add_notice_if_new(
-    title: str,
-    link: str,
-    published_date: str,
-) -> bool:
-    conn = get_connection()
-    cursor = conn.cursor()
-
-    try:
-        cursor.execute(
-            """
-            INSERT INTO notices (
-                title,
-                link,
-                published_date
-            )
-            VALUES (?, ?, ?)
-            """,
-            (
-                title,
-                link,
-                published_date,
-            ),
-        )
-
-        conn.commit()
-        return True
-
-    except sqlite3.IntegrityError:
-        return False
-
-    finally:
-        conn.close()
-
-
-def get_recent_notices(
-    limit: int = 5,
-) -> List[sqlite3.Row]:
-    conn = get_connection()
-    cursor = conn.cursor()
-
-    cursor.execute(
-        """
-        SELECT *
-        FROM notices
-        ORDER BY id DESC
-        LIMIT ?
-        """,
-        (limit,),
-    )
-
-    rows = cursor.fetchall()
-    conn.close()
-
-    return rows
-
-
-def get_notification_status(
-    telegram_id: int,
-) -> bool:
-    conn = get_connection()
-    cursor = conn.cursor()
-
-    cursor.execute(
-        """
-        SELECT notifications_enabled
-        FROM users
-        WHERE telegram_id = ?
-        """,
-        (telegram_id,),
-    )
-
-    row = cursor.fetchone()
-    conn.close()
-
-    if row:
-        return bool(row["notifications_enabled"])
-
-    return True
-
-
-def toggle_notification(
-    telegram_id: int,
-) -> bool:
-    current_status = get_notification_status(telegram_id)
-
-    new_status = 0 if current_status else 1
-
-    conn = get_connection()
-    cursor = conn.cursor()
-
-    cursor.execute(
-        """
-        UPDATE users
-        SET notifications_enabled = ?
-        WHERE telegram_id = ?
-        """,
-        (
-            new_status,
-            telegram_id,
-        ),
-    )
-
-    conn.commit()
-    conn.close()
-
-    return bool(new_status)
-
-
 def get_setting(
     key: str,
-    default: Any,
-) -> Any:
+    default: Any = None,
+):
     conn = get_connection()
     cursor = conn.cursor()
 
     cursor.execute(
-        """
-        SELECT value
-        FROM settings
-        WHERE key = ?
-        """,
+        "SELECT value FROM settings WHERE key = ?",
         (key,),
     )
 
@@ -250,16 +126,18 @@ def get_setting(
     conn.close()
 
     if row:
+        value = row["value"]
+
         try:
-            val = float(row["value"])
+            number = float(value)
 
-            if val.is_integer():
-                return int(val)
+            if number.is_integer():
+                return int(number)
 
-            return val
+            return number
 
         except ValueError:
-            return row["value"]
+            return value
 
     return default
 
@@ -290,3 +168,74 @@ def update_setting(
 
     conn.commit()
     conn.close()
+
+
+def get_calendar_by_url(url: str):
+    conn = get_connection()
+    cursor = conn.cursor()
+
+    cursor.execute(
+        """
+        SELECT *
+        FROM academic_calendars
+        WHERE url = ?
+        """,
+        (url,),
+    )
+
+    row = cursor.fetchone()
+    conn.close()
+
+    return row
+
+
+def save_calendar(
+    title: str,
+    url: str,
+    content_hash: str,
+    content: str,
+):
+    conn = get_connection()
+    cursor = conn.cursor()
+
+    cursor.execute(
+        """
+        INSERT INTO academic_calendars (
+            title,
+            url,
+            content_hash,
+            content
+        )
+        VALUES (?, ?, ?, ?)
+        ON CONFLICT(url) DO UPDATE SET
+            title=excluded.title,
+            content_hash=excluded.content_hash,
+            content=excluded.content,
+            updated_at=CURRENT_TIMESTAMP
+        """,
+        (
+            title,
+            url,
+            content_hash,
+            content,
+        ),
+    )
+
+    conn.commit()
+    conn.close()
+
+
+def get_calendars():
+    conn = get_connection()
+    cursor = conn.cursor()
+
+    cursor.execute("""
+        SELECT *
+        FROM academic_calendars
+        ORDER BY id DESC
+        """)
+
+    rows = cursor.fetchall()
+    conn.close()
+
+    return rows
