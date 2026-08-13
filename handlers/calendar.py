@@ -3,28 +3,33 @@ from telegram import (
     InlineKeyboardButton,
     InlineKeyboardMarkup,
 )
-
 from telegram.ext import ContextTypes
 
 from services.calendar_service import fetch_calendars
 
 
-def shorten(text, length=700):
-    if len(text) <= length:
-        return text
+def get_year(calendar):
+    title = calendar.get("title", "")
+    year = calendar.get("year", "")
 
-    return text[:length].rsplit(" ", 1)[0] + "..."
+    if year:
+        return year
+
+    import re
+
+    match = re.search(
+        r"\b20\d{2}\b",
+        title,
+    )
+
+    return match.group(0) if match else ""
 
 
 async def academic_calendar(
     update: Update,
     context: ContextTypes.DEFAULT_TYPE,
 ):
-    message = update.message
-
-    await message.reply_text(
-        "📅 Academic Calendar\n\n" "🔄 Fetching the latest calendars..."
-    )
+    message = update.effective_message
 
     try:
         calendars = await fetch_calendars()
@@ -42,6 +47,10 @@ async def academic_calendar(
 
     calendars = calendars[:5]
 
+    text_parts = ["📅 <b>Academic Calendar</b>"]
+
+    buttons = []
+
     for index, calendar in enumerate(
         calendars,
         1,
@@ -51,30 +60,30 @@ async def academic_calendar(
             "Academic Calendar",
         )
 
+        year = get_year(calendar)
+
+        text_parts.append(f"\n<b>{index}. {title}</b>\n" f"📅 {year}")
+
         url = calendar.get(
             "url",
             "",
         )
 
-        content = calendar.get(
-            "content",
-            "",
-        )
+        if url:
+            buttons.append(
+                [
+                    InlineKeyboardButton(
+                        f"📄 {index}. View Calendar ↗",
+                        url=url,
+                    )
+                ]
+            )
 
-        keyboard = [
-            [
-                InlineKeyboardButton(
-                    f"📄 {index}. {title} ↗",
-                    url=url,
-                )
-            ]
-        ]
+    text_parts.append("\n🔗 Each button opens the original UIU academic calendar.")
 
-        text = f"<b>{index}. {title}</b>\n\n" f"📅 {shorten(content)}"
-
-        await message.reply_text(
-            text,
-            reply_markup=InlineKeyboardMarkup(keyboard),
-            parse_mode="HTML",
-            disable_web_page_preview=True,
-        )
+    await message.reply_text(
+        "\n".join(text_parts),
+        reply_markup=InlineKeyboardMarkup(buttons),
+        parse_mode="HTML",
+        disable_web_page_preview=True,
+    )
