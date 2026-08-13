@@ -4,7 +4,9 @@ from telegram import (
     Update,
 )
 
-from telegram.ext import ContextTypes
+from telegram.ext import (
+    ContextTypes,
+)
 
 from services.calendar_service import (
     get_latest_calendars,
@@ -19,24 +21,22 @@ async def academic_calendar(
         return
 
     try:
-        calendars = await get_latest_calendars(limit=5)
+        calendars = await get_latest_calendars(5)
 
         if not calendars:
             await update.message.reply_text(
-                "📅 No academic calendars found.\n\n" "Please try again later."
+                "⚠️ No academic calendars found right now.\n\n"
+                "Please try again later."
             )
             return
 
-        lines = [
-            "📅 <b>Academic Calendar</b>",
-            "",
-        ]
+        text = "📅 <b>Academic Calendar</b>\n\n"
 
         buttons = []
 
         for index, calendar in enumerate(
             calendars,
-            start=1,
+            1,
         ):
             title = calendar.get(
                 "title",
@@ -53,12 +53,12 @@ async def academic_calendar(
                 "",
             )
 
-            lines.append(f"<b>{index}. {title}</b>")
+            text += f"<b>{index}. {title}</b>\n"
 
             if year:
-                lines.append(f"📅 {year}")
+                text += f"📅 {year}\n"
 
-            lines.append("")
+            text += "\n"
 
             if url:
                 buttons.append(
@@ -70,16 +70,21 @@ async def academic_calendar(
                     ]
                 )
 
-        lines.append("🔗 Each button opens the original UIU academic calendar page.")
+        text += "🔗 Each button opens the " "original UIU academic calendar page."
 
         await update.message.reply_text(
-            "\n".join(lines),
+            text,
             parse_mode="HTML",
-            reply_markup=InlineKeyboardMarkup(buttons),
+            reply_markup=(InlineKeyboardMarkup(buttons) if buttons else None),
             disable_web_page_preview=True,
         )
 
-    except Exception:
+    except Exception as error:
+        print(
+            "Academic calendar error:",
+            error,
+        )
+
         await update.message.reply_text(
             "⚠️ Unable to load academic calendars right now.\n\n"
             "Please try again later."
