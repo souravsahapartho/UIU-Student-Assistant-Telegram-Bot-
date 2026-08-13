@@ -4,9 +4,7 @@ from telegram import (
     Update,
 )
 
-from telegram.ext import (
-    ContextTypes,
-)
+from telegram.ext import ContextTypes
 
 from services.calendar_service import (
     get_latest_calendars,
@@ -24,10 +22,7 @@ async def academic_calendar(
         calendars = await get_latest_calendars(5)
 
         if not calendars:
-            await update.message.reply_text(
-                "⚠️ No academic calendars found right now.\n\n"
-                "Please try again later."
-            )
+            await update.message.reply_text("⚠️ No academic calendars found right now.")
             return
 
         text = "📅 <b>Academic Calendar</b>\n\n"
@@ -36,56 +31,38 @@ async def academic_calendar(
 
         for index, calendar in enumerate(
             calendars,
-            1,
+            start=1,
         ):
-            title = calendar.get(
-                "title",
-                "Academic Calendar",
+            title = calendar["title"]
+            year = calendar["year"]
+            url = calendar["url"]
+
+            text += f"<b>{index}. {title}</b>\n" f"📅 {year}\n\n"
+
+            buttons.append(
+                [
+                    InlineKeyboardButton(
+                        f"📄 {index}. View Calendar ↗",
+                        url=url,
+                    )
+                ]
             )
 
-            year = calendar.get(
-                "year",
-                "",
-            )
-
-            url = calendar.get(
-                "url",
-                "",
-            )
-
-            text += f"<b>{index}. {title}</b>\n"
-
-            if year:
-                text += f"📅 {year}\n"
-
-            text += "\n"
-
-            if url:
-                buttons.append(
-                    [
-                        InlineKeyboardButton(
-                            f"📄 {index}. View Calendar",
-                            url=url,
-                        )
-                    ]
-                )
-
-        text += "🔗 Each button opens the " "original UIU academic calendar page."
+        text += "🔗 Each button opens the " "original UIU calendar page."
 
         await update.message.reply_text(
             text,
             parse_mode="HTML",
-            reply_markup=(InlineKeyboardMarkup(buttons) if buttons else None),
+            reply_markup=InlineKeyboardMarkup(buttons),
             disable_web_page_preview=True,
         )
 
-    except Exception as error:
+    except Exception as e:
         print(
             "Academic calendar error:",
-            error,
+            e,
         )
 
         await update.message.reply_text(
-            "⚠️ Unable to load academic calendars right now.\n\n"
-            "Please try again later."
+            "⚠️ Unable to load academic calendars right now."
         )
