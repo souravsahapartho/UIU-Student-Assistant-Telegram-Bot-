@@ -39,7 +39,7 @@ def init_db():
     cursor.execute("""
         CREATE TABLE IF NOT EXISTS notices (
             id INTEGER PRIMARY KEY AUTOINCREMENT,
-            title TEXT,
+            title TEXT NOT NULL,
             description TEXT,
             url TEXT,
             created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
@@ -65,7 +65,7 @@ def init_db():
 def log_user_activity(
     telegram_id: int,
     first_name: str,
-    username: Optional[str],
+    username: Optional[str] = None,
 ):
     conn = get_connection()
     cursor = conn.cursor()
@@ -79,9 +79,9 @@ def log_user_activity(
         )
         VALUES (?, ?, ?)
         ON CONFLICT(telegram_id) DO UPDATE SET
-            first_name=excluded.first_name,
-            username=excluded.username,
-            last_active=CURRENT_TIMESTAMP
+            first_name = excluded.first_name,
+            username = excluded.username,
+            last_active = CURRENT_TIMESTAMP
         """,
         (
             telegram_id,
@@ -102,12 +102,49 @@ def get_all_users():
         SELECT telegram_id
         FROM users
         WHERE telegram_id IS NOT NULL
+        ORDER BY id ASC
         """)
 
     rows = cursor.fetchall()
     conn.close()
 
     return [row["telegram_id"] for row in rows]
+
+
+def get_user(
+    telegram_id: int,
+):
+    conn = get_connection()
+    cursor = conn.cursor()
+
+    cursor.execute(
+        """
+        SELECT *
+        FROM users
+        WHERE telegram_id = ?
+        """,
+        (telegram_id,),
+    )
+
+    row = cursor.fetchone()
+    conn.close()
+
+    return row
+
+
+def get_user_count():
+    conn = get_connection()
+    cursor = conn.cursor()
+
+    cursor.execute("""
+        SELECT COUNT(*) AS count
+        FROM users
+        """)
+
+    row = cursor.fetchone()
+    conn.close()
+
+    return row["count"]
 
 
 def get_setting(
@@ -118,28 +155,32 @@ def get_setting(
     cursor = conn.cursor()
 
     cursor.execute(
-        "SELECT value FROM settings WHERE key = ?",
+        """
+        SELECT value
+        FROM settings
+        WHERE key = ?
+        """,
         (key,),
     )
 
     row = cursor.fetchone()
     conn.close()
 
-    if row:
-        value = row["value"]
+    if row is None:
+        return default
 
-        try:
-            number = float(value)
+    value = row["value"]
 
-            if number.is_integer():
-                return int(number)
+    try:
+        number = float(value)
 
-            return number
+        if number.is_integer():
+            return int(number)
 
-        except ValueError:
-            return value
+        return number
 
-    return default
+    except (ValueError, TypeError):
+        return value
 
 
 def update_setting(
@@ -157,8 +198,8 @@ def update_setting(
         )
         VALUES (?, ?)
         ON CONFLICT(key) DO UPDATE SET
-            value=excluded.value,
-            updated_at=CURRENT_TIMESTAMP
+            value = excluded.value,
+            updated_at = CURRENT_TIMESTAMP
         """,
         (
             key,
@@ -170,7 +211,136 @@ def update_setting(
     conn.close()
 
 
-def get_calendar_by_url(url: str):
+def get_recent_notices(
+    limit: int = 10,
+):
+    conn = get_connection()
+    cursor = conn.cursor()
+
+    cursor.execute(
+        """
+        SELECT
+            id,
+            title,
+            description,
+            url,
+            created_at
+        FROM notices
+        ORDER BY datetime(created_at) DESC, id DESC
+        LIMIT ?
+        """,
+        (limit,),
+    )
+
+    rows = cursor.fetchall()
+    conn.close()
+
+    return rows
+
+
+def add_notice(
+    title: str,
+    description: str = "",
+    url: str = "",
+):
+    conn = get_connection()
+    cursor = conn.cursor()
+
+    cursor.execute(
+        """
+        INSERT INTO notices (
+            title,
+            description,
+            url
+        )
+        VALUES (?, ?, ?)
+        """,
+        (
+            title,
+            description,
+            url,
+        ),
+    )
+
+    conn.commit()
+
+    notice_id = cursor.lastrowid
+
+    conn.close()
+
+    return notice_id
+
+
+def get_notice_by_url(
+    url: str,
+):
+    conn = get_connection()
+    cursor = conn.cursor()
+
+    cursor.execute(
+        """
+        SELECT *
+        FROM notices
+        WHERE url = ?
+        ORDER BY id DESC
+        LIMIT 1
+        """,
+        (url,),
+    )
+
+    row = cursor.fetchone()
+    conn.close()
+
+    return row
+
+
+def get_notice(
+    notice_id: int,
+):
+    conn = get_connection()
+    cursor = conn.cursor()
+
+    cursor.execute(
+        """
+        SELECT *
+        FROM notices
+        WHERE id = ?
+        """,
+        (notice_id,),
+    )
+
+    row = cursor.fetchone()
+    conn.close()
+
+    return row
+
+
+def delete_notice(
+    notice_id: int,
+):
+    conn = get_connection()
+    cursor = conn.cursor()
+
+    cursor.execute(
+        """
+        DELETE FROM notices
+        WHERE id = ?
+        """,
+        (notice_id,),
+    )
+
+    conn.commit()
+
+    deleted = cursor.rowcount > 0
+
+    conn.close()
+
+    return deleted
+
+
+def get_calendar_by_url(
+    url: str,
+):
     conn = get_connection()
     cursor = conn.cursor()
 
@@ -179,8 +349,30 @@ def get_calendar_by_url(url: str):
         SELECT *
         FROM academic_calendars
         WHERE url = ?
+        LIMIT 1
         """,
         (url,),
+    )
+
+    row = cursor.fetchone()
+    conn.close()
+
+    return row
+
+
+def get_calendar_by_id(
+    calendar_id: int,
+):
+    conn = get_connection()
+    cursor = conn.cursor()
+
+    cursor.execute(
+        """
+        SELECT *
+        FROM academic_calendars
+        WHERE id = ?
+        """,
+        (calendar_id,),
     )
 
     row = cursor.fetchone()
@@ -193,49 +385,137 @@ def save_calendar(
     title: str,
     url: str,
     content_hash: str,
-    content: str,
+    content: str = "",
 ):
     conn = get_connection()
     cursor = conn.cursor()
 
-    cursor.execute(
+    existing = cursor.execute(
         """
-        INSERT INTO academic_calendars (
-            title,
-            url,
-            content_hash,
-            content
-        )
-        VALUES (?, ?, ?, ?)
-        ON CONFLICT(url) DO UPDATE SET
-            title=excluded.title,
-            content_hash=excluded.content_hash,
-            content=excluded.content,
-            updated_at=CURRENT_TIMESTAMP
+        SELECT id
+        FROM academic_calendars
+        WHERE url = ?
         """,
-        (
-            title,
-            url,
-            content_hash,
-            content,
-        ),
-    )
+        (url,),
+    ).fetchone()
+
+    if existing:
+
+        cursor.execute(
+            """
+            UPDATE academic_calendars
+            SET
+                title = ?,
+                content_hash = ?,
+                content = ?,
+                updated_at = CURRENT_TIMESTAMP
+            WHERE url = ?
+            """,
+            (
+                title,
+                content_hash,
+                content,
+                url,
+            ),
+        )
+
+        calendar_id = existing["id"]
+
+    else:
+
+        cursor.execute(
+            """
+            INSERT INTO academic_calendars (
+                title,
+                url,
+                content_hash,
+                content
+            )
+            VALUES (?, ?, ?, ?)
+            """,
+            (
+                title,
+                url,
+                content_hash,
+                content,
+            ),
+        )
+
+        calendar_id = cursor.lastrowid
 
     conn.commit()
     conn.close()
 
+    return calendar_id
 
-def get_calendars():
+
+def get_calendars(
+    limit: Optional[int] = None,
+):
+    conn = get_connection()
+    cursor = conn.cursor()
+
+    if limit is not None:
+
+        cursor.execute(
+            """
+            SELECT *
+            FROM academic_calendars
+            ORDER BY datetime(updated_at) DESC, id DESC
+            LIMIT ?
+            """,
+            (limit,),
+        )
+
+    else:
+
+        cursor.execute("""
+            SELECT *
+            FROM academic_calendars
+            ORDER BY datetime(updated_at) DESC, id DESC
+            """)
+
+    rows = cursor.fetchall()
+    conn.close()
+
+    return rows
+
+
+def get_latest_calendar():
     conn = get_connection()
     cursor = conn.cursor()
 
     cursor.execute("""
         SELECT *
         FROM academic_calendars
-        ORDER BY id DESC
+        ORDER BY datetime(updated_at) DESC, id DESC
+        LIMIT 1
         """)
 
-    rows = cursor.fetchall()
+    row = cursor.fetchone()
     conn.close()
 
-    return rows
+    return row
+
+
+def delete_calendar(
+    calendar_id: int,
+):
+    conn = get_connection()
+    cursor = conn.cursor()
+
+    cursor.execute(
+        """
+        DELETE FROM academic_calendars
+        WHERE id = ?
+        """,
+        (calendar_id,),
+    )
+
+    conn.commit()
+
+    deleted = cursor.rowcount > 0
+
+    conn.close()
+
+    return deleted
