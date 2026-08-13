@@ -9,15 +9,19 @@ from fastapi import (
     Request,
 )
 
-from telegram import Update
+from telegram import (
+    Update,
+    InlineKeyboardButton,
+    InlineKeyboardMarkup,
+)
 
 from telegram.ext import (
     Application,
-    CallbackQueryHandler,
     CommandHandler,
-    ContextTypes,
-    ConversationHandler,
     MessageHandler,
+    ConversationHandler,
+    ContextTypes,
+    CallbackQueryHandler,
     filters,
 )
 
@@ -25,6 +29,9 @@ from config import Config
 
 from database import (
     init_db,
+    get_notification_users,
+    get_setting,
+    update_setting,
 )
 
 from states import (
@@ -59,14 +66,13 @@ from handlers.general import (
 
 from handlers.cgpa import (
     cgpa_start,
+    cgpa_grading_callback,
     get_prev_credits,
     get_prev_cgpa,
     get_course_count,
     get_course_credit,
     get_course_grade,
     cgpa_cancel,
-    cgpa_grading_callback,
-    cgpa_cancel_callback,
 )
 
 from handlers.fee import (
@@ -88,6 +94,10 @@ from handlers.calendar import (
 
 from handlers.admin import (
     admin_panel,
+)
+
+from services.calendar_service import (
+    sync_calendars,
 )
 
 # ============================================================
@@ -122,7 +132,199 @@ telegram_app = Application.builder().token(Config.BOT_TOKEN).build()
 
 
 # ============================================================
-# CGPA CONVERSATION HANDLER
+# ACADEMIC CALENDAR NOTIFICATION
+# ============================================================
+
+
+async def send_calendar_notifications(
+    context: ContextTypes.DEFAULT_TYPE,
+    new_items,
+    updated_items,
+):
+
+    users = get_notification_users()
+
+    if not users:
+        return
+
+    # --------------------------------------------------------
+    # New calendars
+    # --------------------------------------------------------
+
+    for calendar in new_items:
+
+        title = calendar.get(
+            "title",
+            "Academic Calendar",
+        )
+
+        url = calendar.get(
+            "url",
+            "",
+        )
+
+        text = (
+            "🔔 <b>New Academic Calendar</b>\n\n"
+            f"📅 {title}\n\n"
+            "UIU has published a new academic calendar."
+        )
+
+        keyboard = []
+
+        if url:
+
+            keyboard.append(
+                [
+                    InlineKeyboardButton(
+                        "📄 View Calendar",
+                        url=url,
+                    )
+                ]
+            )
+
+        markup = InlineKeyboardMarkup(keyboard) if keyboard else None
+
+        for telegram_id in users:
+
+            try:
+
+                await context.bot.send_message(
+                    chat_id=telegram_id,
+                    text=text,
+                    reply_markup=markup,
+                    parse_mode="HTML",
+                )
+
+            except Exception as error:
+
+                logger.warning(
+                    "New calendar notification failed " "for %s: %s",
+                    telegram_id,
+                    error,
+                )
+
+    # --------------------------------------------------------
+    # Updated calendars
+    # --------------------------------------------------------
+
+    for calendar in updated_items:
+
+        title = calendar.get(
+            "title",
+            "Academic Calendar",
+        )
+
+        url = calendar.get(
+            "url",
+            "",
+        )
+
+        text = (
+            "🔄 <b>Academic Calendar Updated</b>\n\n"
+            f"📅 {title}\n\n"
+            "UIU has updated this academic calendar."
+        )
+
+        keyboard = []
+
+        if url:
+
+            keyboard.append(
+                [
+                    InlineKeyboardButton(
+                        "📄 View Updated Calendar",
+                        url=url,
+                    )
+                ]
+            )
+
+        markup = InlineKeyboardMarkup(keyboard) if keyboard else None
+
+        for telegram_id in users:
+
+            try:
+
+                await context.bot.send_message(
+                    chat_id=telegram_id,
+                    text=text,
+                    reply_markup=markup,
+                    parse_mode="HTML",
+                )
+
+            except Exception as error:
+
+                logger.warning(
+                    "Updated calendar notification failed " "for %s: %s",
+                    telegram_id,
+                    error,
+                )
+
+
+# ============================================================
+# CALENDAR UPDATE JOB
+# ============================================================
+
+
+async def calendar_update_job(
+    context: ContextTypes.DEFAULT_TYPE,
+):
+
+    try:
+
+        initialized = get_setting(
+            "CALENDAR_INITIALIZED",
+            0,
+        )
+
+        result = await sync_calendars()
+
+        new_items = result.get(
+            "new",
+            [],
+        )
+
+        updated_items = result.get(
+            "updated",
+            [],
+        )
+
+        # ----------------------------------------------------
+        # First sync:
+        # Do NOT notify everyone about old calendars.
+        # ----------------------------------------------------
+
+        if not initialized:
+
+            update_setting(
+                "CALENDAR_INITIALIZED",
+                1,
+            )
+
+            logger.info("Academic calendar initialized " "without notification.")
+
+            return
+
+        if not new_items and not updated_items:
+
+            return
+
+        await send_calendar_notifications(
+            context,
+            new_items,
+            updated_items,
+        )
+
+    except Exception as error:
+
+        logger.error(
+            "Academic calendar sync failed: %s",
+            error,
+            exc_info=True,
+        )
+
+
+# ============================================================
+# CGPA CONVERSATION
 # ============================================================
 
 
@@ -137,20 +339,26 @@ def create_cgpa_handler():
         ],
         states={
             # ------------------------------------------------
-            # Step 1
+            # Previous Credits
             # ------------------------------------------------
             CGPA_PREV_CREDITS: [
                 MessageHandler(
-                    filters.TEXT & ~filters.COMMAND & ~filters.Regex(r"^❌ Cancel$"),
+                    filters.TEXT
+                    & ~filters.COMMAND
+                    & ~filters.Regex(r"^❌ Cancel$")
+                    & ~filters.Regex(r"^📚 Grading System$"),
                     get_prev_credits,
                 )
             ],
             # ------------------------------------------------
-            # Step 2
+            # Previous CGPA
             # ------------------------------------------------
             CGPA_PREV_CGPA: [
                 MessageHandler(
-                    filters.TEXT & ~filters.COMMAND & ~filters.Regex(r"^❌ Cancel$"),
+                    filters.TEXT
+                    & ~filters.COMMAND
+                    & ~filters.Regex(r"^❌ Cancel$")
+                    & ~filters.Regex(r"^📚 Grading System$"),
                     get_prev_cgpa,
                 )
             ],
@@ -159,7 +367,10 @@ def create_cgpa_handler():
             # ------------------------------------------------
             CGPA_COURSE_COUNT: [
                 MessageHandler(
-                    filters.TEXT & ~filters.COMMAND & ~filters.Regex(r"^❌ Cancel$"),
+                    filters.TEXT
+                    & ~filters.COMMAND
+                    & ~filters.Regex(r"^❌ Cancel$")
+                    & ~filters.Regex(r"^📚 Grading System$"),
                     get_course_count,
                 )
             ],
@@ -168,7 +379,10 @@ def create_cgpa_handler():
             # ------------------------------------------------
             CGPA_COURSE_CREDIT: [
                 MessageHandler(
-                    filters.TEXT & ~filters.COMMAND & ~filters.Regex(r"^❌ Cancel$"),
+                    filters.TEXT
+                    & ~filters.COMMAND
+                    & ~filters.Regex(r"^❌ Cancel$")
+                    & ~filters.Regex(r"^📚 Grading System$"),
                     get_course_credit,
                 )
             ],
@@ -177,7 +391,10 @@ def create_cgpa_handler():
             # ------------------------------------------------
             CGPA_COURSE_GRADE: [
                 MessageHandler(
-                    filters.TEXT & ~filters.COMMAND & ~filters.Regex(r"^❌ Cancel$"),
+                    filters.TEXT
+                    & ~filters.COMMAND
+                    & ~filters.Regex(r"^❌ Cancel$")
+                    & ~filters.Regex(r"^📚 Grading System$"),
                     get_course_grade,
                 )
             ],
@@ -191,6 +408,10 @@ def create_cgpa_handler():
                 filters.Regex(r"^❌ Cancel$"),
                 cgpa_cancel,
             ),
+            MessageHandler(
+                filters.Regex(r"^📚 Grading System$"),
+                cgpa_grading_callback,
+            ),
         ],
         per_user=True,
         per_chat=True,
@@ -199,7 +420,7 @@ def create_cgpa_handler():
 
 
 # ============================================================
-# FEE CONVERSATION HANDLER
+# FEE CONVERSATION
 # ============================================================
 
 
@@ -387,7 +608,7 @@ def setup_handlers():
     )
 
     # --------------------------------------------------------
-    # Normal Cancel
+    # Global Cancel
     # --------------------------------------------------------
 
     telegram_app.add_handler(
@@ -397,12 +618,8 @@ def setup_handlers():
         )
     )
 
-    # ========================================================
-    # CALLBACKS
-    # ========================================================
-
     # --------------------------------------------------------
-    # Academic Information
+    # Academic Info callbacks
     # --------------------------------------------------------
 
     telegram_app.add_handler(
@@ -413,29 +630,7 @@ def setup_handlers():
     )
 
     # --------------------------------------------------------
-    # CGPA → Grading System
-    # --------------------------------------------------------
-
-    telegram_app.add_handler(
-        CallbackQueryHandler(
-            cgpa_grading_callback,
-            pattern=r"^cgpa_grading$",
-        )
-    )
-
-    # --------------------------------------------------------
-    # CGPA → Cancel
-    # --------------------------------------------------------
-
-    telegram_app.add_handler(
-        CallbackQueryHandler(
-            cgpa_cancel_callback,
-            pattern=r"^cgpa_cancel_button$",
-        )
-    )
-
-    # --------------------------------------------------------
-    # Settings
+    # Settings callbacks
     # --------------------------------------------------------
 
     telegram_app.add_handler(
@@ -461,23 +656,6 @@ async def error_handler(
         exc_info=context.error,
     )
 
-    if (
-        isinstance(
-            update,
-            Update,
-        )
-        and update.message
-    ):
-
-        try:
-
-            await update.message.reply_text(
-                "⚠️ Something went wrong. " "Please try again."
-            )
-
-        except Exception:
-            pass
-
 
 # ============================================================
 # LIFESPAN
@@ -489,35 +667,40 @@ async def lifespan(
     fastapi_app: FastAPI,
 ):
 
-    # --------------------------------------------------------
-    # Config
-    # --------------------------------------------------------
-
     Config.validate()
 
-    # --------------------------------------------------------
-    # Database
-    # --------------------------------------------------------
-
     init_db()
-
-    # --------------------------------------------------------
-    # Handlers
-    # --------------------------------------------------------
 
     setup_handlers()
 
     telegram_app.add_error_handler(error_handler)
 
     # --------------------------------------------------------
-    # Telegram startup
+    # Start Telegram application
     # --------------------------------------------------------
 
     await telegram_app.initialize()
 
     await telegram_app.start()
 
-    logger.info("Telegram application started.")
+    # --------------------------------------------------------
+    # Calendar checker
+    # --------------------------------------------------------
+
+    if telegram_app.job_queue:
+
+        telegram_app.job_queue.run_repeating(
+            calendar_update_job,
+            interval=1800,
+            first=60,
+            name="academic-calendar-check",
+        )
+
+        logger.info("Academic calendar checker started.")
+
+    else:
+
+        logger.error("JobQueue is unavailable.")
 
     # --------------------------------------------------------
     # Render URL
@@ -555,9 +738,9 @@ async def lifespan(
 
     yield
 
-    # --------------------------------------------------------
-    # Shutdown
-    # --------------------------------------------------------
+    # ========================================================
+    # SHUTDOWN
+    # ========================================================
 
     try:
 
@@ -643,7 +826,7 @@ async def telegram_webhook(
 ):
 
     # --------------------------------------------------------
-    # Secret
+    # Verify secret if configured
     # --------------------------------------------------------
 
     if WEBHOOK_SECRET:
@@ -657,10 +840,6 @@ async def telegram_webhook(
                 detail="Invalid webhook secret",
             )
 
-    # --------------------------------------------------------
-    # Process update
-    # --------------------------------------------------------
-
     try:
 
         data = await request.json()
@@ -672,9 +851,7 @@ async def telegram_webhook(
 
         if update is not None:
 
-            # Do not wait for the handler.
-            # Telegram gets HTTP 200 immediately.
-
+            # Immediate HTTP response to Telegram.
             asyncio.create_task(telegram_app.process_update(update))
 
         return {"ok": True}
@@ -694,7 +871,7 @@ async def telegram_webhook(
 
 
 # ============================================================
-# LOCAL RUN
+# LOCAL DEVELOPMENT
 # ============================================================
 
 if __name__ == "__main__":
