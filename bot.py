@@ -3,36 +3,22 @@ import logging
 import os
 from contextlib import asynccontextmanager
 
-from fastapi import (
-    FastAPI,
-    Request,
-    HTTPException,
-)
+from fastapi import FastAPI, HTTPException, Request
 
-from telegram import (
-    Update,
-    InlineKeyboardButton,
-    InlineKeyboardMarkup,
-)
-
+from telegram import Update
 from telegram.ext import (
     Application,
-    CommandHandler,
-    MessageHandler,
-    ConversationHandler,
-    ContextTypes,
     CallbackQueryHandler,
+    CommandHandler,
+    ContextTypes,
+    ConversationHandler,
+    MessageHandler,
     filters,
 )
 
 from config import Config
 
-from database import (
-    init_db,
-    get_notification_users,
-    get_setting,
-    update_setting,
-)
+from database import init_db
 
 from states import (
     CGPA_MENU_CHOICE,
@@ -90,15 +76,10 @@ from handlers.fee import (
 )
 
 from handlers.calendar import academic_calendar
-
 from handlers.admin import admin_panel
 
-from services.calendar_service import (
-    sync_calendars,
-)
-
 logging.basicConfig(
-    format=("%(asctime)s - " "%(name)s - " "%(levelname)s - " "%(message)s"),
+    format="%(asctime)s - %(name)s - %(levelname)s - %(message)s",
     level=logging.INFO,
 )
 
@@ -114,302 +95,137 @@ WEBHOOK_SECRET = os.getenv(
 telegram_app = Application.builder().token(Config.BOT_TOKEN).build()
 
 
-async def send_calendar_notifications(
-    context: ContextTypes.DEFAULT_TYPE,
-    new_items,
-    updated_items,
-):
-    users = get_notification_users()
-
-    if not users:
-        return
-
-    for calendar in new_items:
-        title = calendar.get(
-            "title",
-            "Academic Calendar",
-        )
-
-        year = calendar.get(
-            "year",
-            "",
-        )
-
-        url = calendar.get(
-            "url",
-            "",
-        )
-
-        text = "🔔 <b>New Academic Calendar</b>\n\n" f"📅 <b>{title}</b>"
-
-        if year:
-            text += f"\n📅 {year}"
-
-        text += "\n\n" "UIU has published a new academic calendar."
-
-        keyboard = []
-
-        if url:
-            keyboard.append(
-                [
-                    InlineKeyboardButton(
-                        f"📄 {title} ↗",
-                        url=url,
-                    )
-                ]
-            )
-
-        markup = InlineKeyboardMarkup(keyboard) if keyboard else None
-
-        for telegram_id in users:
-            try:
-                await context.bot.send_message(
-                    chat_id=telegram_id,
-                    text=text,
-                    parse_mode="HTML",
-                    reply_markup=markup,
-                    disable_web_page_preview=True,
-                )
-
-            except Exception as error:
-                logger.warning(
-                    "New calendar notification failed for %s: %s",
-                    telegram_id,
-                    error,
-                )
-
-    for calendar in updated_items:
-        title = calendar.get(
-            "title",
-            "Academic Calendar",
-        )
-
-        year = calendar.get(
-            "year",
-            "",
-        )
-
-        url = calendar.get(
-            "url",
-            "",
-        )
-
-        text = "🔄 <b>Academic Calendar Updated</b>\n\n" f"📅 <b>{title}</b>"
-
-        if year:
-            text += f"\n📅 {year}"
-
-        text += "\n\n" "UIU has updated or revised this academic calendar."
-
-        keyboard = []
-
-        if url:
-            keyboard.append(
-                [
-                    InlineKeyboardButton(
-                        f"📄 {title} ↗",
-                        url=url,
-                    )
-                ]
-            )
-
-        markup = InlineKeyboardMarkup(keyboard) if keyboard else None
-
-        for telegram_id in users:
-            try:
-                await context.bot.send_message(
-                    chat_id=telegram_id,
-                    text=text,
-                    parse_mode="HTML",
-                    reply_markup=markup,
-                    disable_web_page_preview=True,
-                )
-
-            except Exception as error:
-                logger.warning(
-                    "Calendar update notification failed for %s: %s",
-                    telegram_id,
-                    error,
-                )
-
-
-async def calendar_update_job(
-    context: ContextTypes.DEFAULT_TYPE,
-):
-    try:
-        result = await sync_calendars()
-
-        new_items = result.get(
-            "new",
-            [],
-        )
-
-        updated_items = result.get(
-            "updated",
-            [],
-        )
-
-        initialized = get_setting(
-            "CALENDAR_INITIALIZED",
-            0,
-        )
-
-        if not initialized:
-            update_setting(
-                "CALENDAR_INITIALIZED",
-                1,
-            )
-
-            logger.info("Academic calendar initialized without notification.")
-
-            return
-
-        if not new_items and not updated_items:
-            return
-
-        await send_calendar_notifications(
-            context,
-            new_items,
-            updated_items,
-        )
-
-    except Exception as error:
-        logger.error(
-            "Academic calendar sync failed: %s",
-            error,
-            exc_info=True,
-        )
-
-
 def setup_handlers():
-    cgpa_conv_handler = ConversationHandler(
+    cgpa_handler = ConversationHandler(
         entry_points=[
             MessageHandler(
-                filters.Regex("^🎓 CGPA Calculator$"),
+                filters.Regex(r"^🎓 CGPA Calculator$"),
                 cgpa_start,
             )
         ],
         states={
             CGPA_MENU_CHOICE: [
                 MessageHandler(
-                    filters.Regex("^➕ New Calculation$"),
+                    filters.Regex(r"^➕ New Calculation$"),
                     cgpa_new_calc,
                 )
             ],
             CGPA_PREV_CREDITS: [
                 MessageHandler(
-                    filters.TEXT & ~filters.Regex("^❌ Cancel$"),
+                    filters.TEXT & ~filters.COMMAND & ~filters.Regex(r"^❌ Cancel$"),
                     get_prev_credits,
                 )
             ],
             CGPA_PREV_CGPA: [
                 MessageHandler(
-                    filters.TEXT & ~filters.Regex("^❌ Cancel$"),
+                    filters.TEXT & ~filters.COMMAND & ~filters.Regex(r"^❌ Cancel$"),
                     get_prev_cgpa,
                 )
             ],
             CGPA_COURSE_COUNT: [
                 MessageHandler(
-                    filters.TEXT & ~filters.Regex("^❌ Cancel$"),
+                    filters.TEXT & ~filters.COMMAND & ~filters.Regex(r"^❌ Cancel$"),
                     get_course_count,
                 )
             ],
             CGPA_COURSE_CREDIT: [
                 MessageHandler(
-                    filters.TEXT & ~filters.Regex("^❌ Cancel$"),
+                    filters.TEXT & ~filters.COMMAND & ~filters.Regex(r"^❌ Cancel$"),
                     get_course_credit,
                 )
             ],
             CGPA_COURSE_GRADE: [
                 MessageHandler(
-                    filters.TEXT & ~filters.Regex("^❌ Cancel$"),
+                    filters.TEXT & ~filters.COMMAND & ~filters.Regex(r"^❌ Cancel$"),
                     get_course_grade,
                 )
             ],
         },
         fallbacks=[
-            MessageHandler(
-                filters.Regex("^❌ Cancel$"),
-                cgpa_cancel,
-            ),
             CommandHandler(
                 "cancel",
+                cgpa_cancel,
+            ),
+            MessageHandler(
+                filters.Regex(r"^❌ Cancel$"),
                 cgpa_cancel,
             ),
         ],
         per_user=True,
         per_chat=True,
+        allow_reentry=True,
     )
 
-    fee_conv_handler = ConversationHandler(
+    fee_handler = ConversationHandler(
         entry_points=[
             MessageHandler(
-                filters.Regex("^💰 Fee Calculator$"),
+                filters.Regex(r"^💰 Fee Calculator$"),
                 fee_start,
             )
         ],
         states={
             FEE_ACADEMIC_SYSTEM: [
                 MessageHandler(
-                    filters.TEXT & ~filters.Regex("^❌ Cancel$"),
+                    filters.TEXT & ~filters.COMMAND & ~filters.Regex(r"^❌ Cancel$"),
                     get_academic_system,
                 )
             ],
             FEE_CREDIT_FEE: [
                 MessageHandler(
-                    filters.TEXT & ~filters.Regex("^❌ Cancel$"),
+                    filters.TEXT & ~filters.COMMAND & ~filters.Regex(r"^❌ Cancel$"),
                     get_credit_fee,
                 )
             ],
             FEE_TRIMESTER_FEE: [
                 MessageHandler(
-                    filters.TEXT & ~filters.Regex("^❌ Cancel$"),
+                    filters.TEXT & ~filters.COMMAND & ~filters.Regex(r"^❌ Cancel$"),
                     get_trimester_fee,
                 )
             ],
             FEE_REG_CREDITS: [
                 MessageHandler(
-                    filters.TEXT & ~filters.Regex("^❌ Cancel$"),
+                    filters.TEXT & ~filters.COMMAND & ~filters.Regex(r"^❌ Cancel$"),
                     get_reg_credits,
                 )
             ],
             FEE_RETAKE_COUNT: [
                 MessageHandler(
-                    filters.TEXT & ~filters.Regex("^❌ Cancel$"),
+                    filters.TEXT & ~filters.COMMAND & ~filters.Regex(r"^❌ Cancel$"),
                     get_retake_count,
                 )
             ],
             FEE_RETAKE_CREDITS: [
                 MessageHandler(
-                    filters.TEXT & ~filters.Regex("^❌ Cancel$"),
+                    filters.TEXT & ~filters.COMMAND & ~filters.Regex(r"^❌ Cancel$"),
                     get_retake_credits,
                 )
             ],
             FEE_DISCOUNT_TYPE: [
                 MessageHandler(
-                    filters.TEXT & ~filters.Regex("^❌ Cancel$"),
+                    filters.TEXT & ~filters.COMMAND & ~filters.Regex(r"^❌ Cancel$"),
                     get_discount_type,
                 )
             ],
             FEE_DISCOUNT_PERCENT: [
                 MessageHandler(
-                    filters.TEXT & ~filters.Regex("^❌ Cancel$"),
+                    filters.TEXT & ~filters.COMMAND & ~filters.Regex(r"^❌ Cancel$"),
                     get_discount_percent,
                 )
             ],
         },
         fallbacks=[
-            MessageHandler(
-                filters.Regex("^❌ Cancel$"),
-                fee_cancel,
-            ),
             CommandHandler(
                 "cancel",
+                fee_cancel,
+            ),
+            MessageHandler(
+                filters.Regex(r"^❌ Cancel$"),
                 fee_cancel,
             ),
         ],
         per_user=True,
         per_chat=True,
+        allow_reentry=True,
     )
 
     telegram_app.add_handler(
@@ -433,69 +249,69 @@ def setup_handlers():
         )
     )
 
-    telegram_app.add_handler(cgpa_conv_handler)
+    telegram_app.add_handler(cgpa_handler)
 
-    telegram_app.add_handler(fee_conv_handler)
+    telegram_app.add_handler(fee_handler)
 
     telegram_app.add_handler(
         MessageHandler(
-            filters.Regex("^📚 Academic Info$"),
+            filters.Regex(r"^📚 Academic Info$"),
             academic_info,
         )
     )
 
     telegram_app.add_handler(
         MessageHandler(
-            filters.Regex("^🔗 Important Links$"),
+            filters.Regex(r"^🔗 Important Links$"),
             show_links,
         )
     )
 
     telegram_app.add_handler(
         MessageHandler(
-            filters.Regex("^📢 Notices$"),
+            filters.Regex(r"^📢 Notices$"),
             notices,
         )
     )
 
     telegram_app.add_handler(
         MessageHandler(
-            filters.Regex("^📅 Academic Calendar$"),
+            filters.Regex(r"^📅 Academic Calendar$"),
             academic_calendar,
         )
     )
 
     telegram_app.add_handler(
         MessageHandler(
-            filters.Regex("^❓ Help$"),
+            filters.Regex(r"^❓ Help$"),
             show_help,
         )
     )
 
     telegram_app.add_handler(
         MessageHandler(
-            filters.Regex("^⚙️ Settings$"),
+            filters.Regex(r"^⚙️ Settings$"),
             settings_menu,
         )
     )
 
     telegram_app.add_handler(
         MessageHandler(
-            filters.Regex("^👤 About$"),
+            filters.Regex(r"^👤 About$"),
             show_about,
         )
     )
 
     telegram_app.add_handler(
         MessageHandler(
-            filters.Regex("^❌ Cancel$"),
+            filters.Regex(r"^❌ Cancel$"),
             handle_cancel,
         )
     )
 
     telegram_app.add_handler(
         MessageHandler(
-            filters.Regex("^🎁 Scholarship Calculator$"),
+            filters.Regex(r"^🎁 Scholarship Calculator$"),
             show_not_implemented,
         )
     )
@@ -503,14 +319,14 @@ def setup_handlers():
     telegram_app.add_handler(
         CallbackQueryHandler(
             academic_info_callback,
-            pattern="^acad_",
+            pattern=r"^acad_",
         )
     )
 
     telegram_app.add_handler(
         CallbackQueryHandler(
             settings_callback,
-            pattern="^toggle_alerts$",
+            pattern=r"^toggle_alerts$",
         )
     )
 
@@ -520,14 +336,14 @@ async def error_handler(
     context: ContextTypes.DEFAULT_TYPE,
 ):
     logger.error(
-        "Exception while handling an update:",
+        "Telegram update error",
         exc_info=context.error,
     )
 
     if isinstance(update, Update) and update.message:
         try:
             await update.message.reply_text(
-                "⚠️ Something went wrong. " "Please try again or type /start."
+                "⚠️ Something went wrong. Please try again."
             )
         except Exception:
             pass
@@ -548,18 +364,6 @@ async def lifespan(
     await telegram_app.initialize()
 
     await telegram_app.start()
-
-    if telegram_app.job_queue:
-        telegram_app.job_queue.run_repeating(
-            calendar_update_job,
-            interval=1800,
-            first=10,
-            name="academic-calendar-check",
-        )
-
-        logger.info("Academic calendar checker started.")
-    else:
-        logger.error("JobQueue is unavailable.")
 
     render_url = os.getenv("RENDER_EXTERNAL_URL")
 
@@ -583,27 +387,39 @@ async def lifespan(
         webhook_url,
     )
 
-    logger.info("UIU Smart Assistant is running...")
+    logger.info("UIU Smart Assistant is running.")
 
     yield
 
     try:
         await telegram_app.bot.delete_webhook()
-    except Exception:
-        pass
+    except Exception as error:
+        logger.warning(
+            "Webhook delete failed: %s",
+            error,
+        )
 
     try:
         await telegram_app.stop()
-    except Exception:
-        pass
+    except Exception as error:
+        logger.warning(
+            "Telegram application stop failed: %s",
+            error,
+        )
 
     try:
         await telegram_app.shutdown()
-    except Exception:
-        pass
+    except Exception as error:
+        logger.warning(
+            "Telegram application shutdown failed: %s",
+            error,
+        )
 
 
-app = FastAPI(lifespan=lifespan)
+app = FastAPI(
+    title="UIU Smart Assistant",
+    lifespan=lifespan,
+)
 
 
 @app.get("/")
@@ -619,7 +435,7 @@ async def health():
     return {
         "status": "ok",
         "telegram": "webhook",
-        "calendar_checker": "active",
+        "academic_calendar": "active",
     }
 
 
@@ -644,7 +460,7 @@ async def telegram_webhook(
             telegram_app.bot,
         )
 
-        if update:
+        if update is not None:
             asyncio.create_task(telegram_app.process_update(update))
 
         return {"ok": True}

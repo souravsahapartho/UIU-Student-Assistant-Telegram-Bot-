@@ -1,83 +1,80 @@
 from telegram import (
+    Update,
     InlineKeyboardButton,
     InlineKeyboardMarkup,
-    Update,
 )
 
 from telegram.ext import ContextTypes
 
-from services.calendar_service import (
-    get_latest_calendars,
-)
+from services.calendar_service import fetch_calendars
+
+
+def shorten(text, length=700):
+    if len(text) <= length:
+        return text
+
+    return text[:length].rsplit(" ", 1)[0] + "..."
 
 
 async def academic_calendar(
     update: Update,
     context: ContextTypes.DEFAULT_TYPE,
 ):
-    if not update.message:
-        return
+    message = update.message
+
+    await message.reply_text(
+        "📅 Academic Calendar\n\n" "🔄 Fetching the latest calendars..."
+    )
 
     try:
-        calendars = await get_latest_calendars(5)
+        calendars = await fetch_calendars()
 
-        if not calendars:
-            await update.message.reply_text(
-                "⚠️ Academic calendars are temporarily unavailable.\n\n"
-                "Please try again later."
-            )
-            return
-
-        text = "📅 <b>Academic Calendar</b>\n\n"
-
-        buttons = []
-
-        for index, calendar in enumerate(
-            calendars,
-            1,
-        ):
-            title = calendar.get(
-                "title",
-                "Academic Calendar",
-            )
-
-            year = calendar.get(
-                "year",
-                "",
-            )
-
-            url = calendar.get(
-                "url",
-                "",
-            )
-
-            text += f"<b>{index}. {title}</b>\n" f"📅 {year}\n\n"
-
-            buttons.append(
-                [
-                    InlineKeyboardButton(
-                        f"📄 {index}. {title} ↗",
-                        url=url,
-                    )
-                ]
-            )
-
-        text += "🔗 Tap a calendar to open " "the original UIU page."
-
-        await update.message.reply_text(
-            text,
-            parse_mode="HTML",
-            reply_markup=InlineKeyboardMarkup(buttons),
-            disable_web_page_preview=True,
-        )
-
-    except Exception as error:
-        print(
-            "Academic calendar error:",
-            error,
-        )
-
-        await update.message.reply_text(
-            "⚠️ Unable to load academic calendars right now.\n\n"
+    except Exception:
+        await message.reply_text(
+            "⚠️ Unable to fetch the academic calendar right now.\n\n"
             "Please try again later."
+        )
+        return
+
+    if not calendars:
+        await message.reply_text("⚠️ No academic calendar was found right now.")
+        return
+
+    calendars = calendars[:5]
+
+    for index, calendar in enumerate(
+        calendars,
+        1,
+    ):
+        title = calendar.get(
+            "title",
+            "Academic Calendar",
+        )
+
+        url = calendar.get(
+            "url",
+            "",
+        )
+
+        content = calendar.get(
+            "content",
+            "",
+        )
+
+        keyboard = [
+            [
+                InlineKeyboardButton(
+                    f"📄 {index}. {title} ↗",
+                    url=url,
+                )
+            ]
+        ]
+
+        text = f"<b>{index}. {title}</b>\n\n" f"📅 {shorten(content)}"
+
+        await message.reply_text(
+            text,
+            reply_markup=InlineKeyboardMarkup(keyboard),
+            parse_mode="HTML",
+            disable_web_page_preview=True,
         )
