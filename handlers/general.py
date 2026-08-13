@@ -39,7 +39,7 @@ async def start(
     )
 
     welcome_msg = (
-        f"👋 Welcome to **UIU Sstudent Assistant**, {user.first_name}!\n\n"
+        f"👋 Welcome to **UIU Student Assistant**, {user.first_name}!\n\n"
         "Your personal assistant for:\n"
         "🎓 CGPA calculation\n"
         "💰 Tuition fee calculation\n"
@@ -102,7 +102,7 @@ async def about(
     context: ContextTypes.DEFAULT_TYPE,
 ):
     about_text = (
-        "🤖 **UIU Sstudent Assistant**\n\n"
+        "🤖 **UIU Student Assistant**\n\n"
         "A student-focused Telegram assistant for "
         "United International University.\n\n"
         "Version 2.0.0\n\n"
@@ -132,10 +132,7 @@ async def important_links(
     update: Update,
     context: ContextTypes.DEFAULT_TYPE,
 ):
-    text = (
-        "🔗 **Important UIU Links**\n\n"
-        "Select a link below to open it."
-    )
+    text = "🔗 **Important UIU Links**\n\n" "Select a link below to open it."
 
     await update.message.reply_text(
         text,
@@ -208,8 +205,7 @@ async def academic_info(
     context: ContextTypes.DEFAULT_TYPE,
 ):
     await update.message.reply_text(
-        "📚 **Academic Information**\n\n"
-        "Select a topic from the menu below:",
+        "📚 **Academic Information**\n\n" "Select a topic from the menu below:",
         reply_markup=get_academic_info_keyboard(),
         parse_mode="Markdown",
     )
@@ -229,59 +225,162 @@ async def academic_info_menu_handler(
         return
 
     if text == "🎓 Admission":
+        keyboard = [
+            [
+                InlineKeyboardButton(
+                    "🌐 UIU Admission",
+                    url="https://admission.uiu.ac.bd/Admission/Home.aspx",
+                )
+            ],
+            [
+                InlineKeyboardButton(
+                    "📋 Admission Criteria",
+                    url="https://admission.uiu.ac.bd/Admission/Candidate/UndergraduateProgramCriteria.aspx",
+                )
+            ],
+        ]
+
         await update.message.reply_text(
-            "🎓 **Admission**\n\n"
-            "For current admission requirements and procedures, "
-            "please check the official UIU website.",
-            reply_markup=get_academic_info_keyboard(),
-            parse_mode="Markdown",
+            "🎓 <b>Admission Information</b>\n\n"
+            "Get information about UIU undergraduate and "
+            "graduate admission, eligibility requirements, "
+            "application procedures and admission test details.\n\n"
+            "Use the buttons below to visit the official UIU "
+            "admission resources.",
+            reply_markup=InlineKeyboardMarkup(keyboard),
+            parse_mode="HTML",
         )
         return
 
     if text == "📝 Registration":
+        keyboard = [
+            [
+                InlineKeyboardButton(
+                    "🔐 UCAM",
+                    url="https://ucam.uiu.ac.bd/",
+                ),
+                InlineKeyboardButton(
+                    "☁️ UCAM Cloud",
+                    url="https://uiu.ucamcloud.com/",
+                ),
+            ],
+            [
+                InlineKeyboardButton(
+                    "📖 Registration Guide",
+                    url="https://ucam.uiu.ac.bd/Upload/RegistrationNotice/Instructions-for-self-registration.pdf",
+                )
+            ],
+        ]
+
         await update.message.reply_text(
-            "📝 **Registration**\n\n"
-            "Course registration information and deadlines should "
-            "be verified through UCAM and official UIU announcements.",
-            reply_markup=get_academic_info_keyboard(),
-            parse_mode="Markdown",
+            "📝 <b>Course Registration</b>\n\n"
+            "Course selection, section selection and course "
+            "registration are generally handled through UIU's "
+            "registration systems.\n\n"
+            "Before registration, make sure your advising and "
+            "other required conditions are completed.\n\n"
+            "Use the buttons below to access the official "
+            "registration systems and guide.",
+            reply_markup=InlineKeyboardMarkup(keyboard),
+            parse_mode="HTML",
         )
         return
 
     if text == "📊 Credit System":
+        keyboard = [
+            [
+                InlineKeyboardButton(
+                    "🌐 UIU Academic Information",
+                    url="https://www.uiu.ac.bd/academics/",
+                )
+            ],
+            [
+                InlineKeyboardButton(
+                    "🎓 Admission & Program Credits",
+                    url="https://admission.uiu.ac.bd/Admission/Home.aspx",
+                )
+            ],
+        ]
+
         await update.message.reply_text(
-            "📊 **Credit System**\n\n"
-            "Credit requirements depend on the academic program. "
-            "Check your department's official curriculum.",
-            reply_markup=get_academic_info_keyboard(),
-            parse_mode="Markdown",
+            "📊 <b>Credit System</b>\n\n"
+            "Every UIU academic program has a defined credit "
+            "requirement for degree completion.\n\n"
+            "Credit requirements can vary depending on the "
+            "academic program and curriculum.\n\n"
+            "For your exact program requirement, always verify "
+            "the current curriculum and official UIU information.",
+            reply_markup=InlineKeyboardMarkup(keyboard),
+            parse_mode="HTML",
         )
         return
 
     if text == "🔄 Retake Rules":
+        keyboard = [
+            [
+                InlineKeyboardButton(
+                    "📚 UIU Grading & Retake Policy",
+                    url="https://www.uiu.ac.bd/academics/grading-performance-evaluation/",
+                )
+            ]
+        ]
+
         await update.message.reply_text(
-            "🔄 **Retake Rules**\n\n"
-            "Retake and improvement policies may change. "
-            "Please verify the current policy through official UIU sources.",
-            reply_markup=get_academic_info_keyboard(),
-            parse_mode="Markdown",
+            "🔄 <b>Retake Rules</b>\n\n"
+            "Students may retake a course when they want to "
+            "improve their grade.\n\n"
+            "A retake requires registering for the course again "
+            "and paying the applicable tuition and other fees.\n\n"
+            "⚠️ Retake policies can depend on the applicable "
+            "academic rules, so always verify the latest policy "
+            "from UIU.",
+            reply_markup=InlineKeyboardMarkup(keyboard),
+            parse_mode="HTML",
         )
         return
 
     if text == "🎯 Graduation":
+        keyboard = [
+            [
+                InlineKeyboardButton(
+                    "🌐 UIU Academic Information",
+                    url="https://www.uiu.ac.bd/academics/",
+                )
+            ],
+            [
+                InlineKeyboardButton(
+                    "🎓 UIU Convocation",
+                    url="https://convocation.uiu.ac.bd/",
+                )
+            ],
+        ]
+
         await update.message.reply_text(
-            "🎯 **Graduation Requirements**\n\n"
-            "Graduation requirements depend on your program and "
-            "academic regulations.",
-            reply_markup=get_academic_info_keyboard(),
-            parse_mode="Markdown",
+            "🎯 <b>Graduation Requirements</b>\n\n"
+            "Graduation requirements depend on your academic "
+            "program, completed credits, CGPA and other applicable "
+            "degree requirements.\n\n"
+            "Students should verify their exact degree requirements "
+            "with their department and official UIU academic resources.\n\n"
+            "Use the buttons below for official information.",
+            reply_markup=InlineKeyboardMarkup(keyboard),
+            parse_mode="HTML",
         )
         return
 
     if text == "📚 Grading System":
+        keyboard = [
+            [
+                InlineKeyboardButton(
+                    "🌐 Official UIU Grading System",
+                    url="https://www.uiu.ac.bd/academics/grading-performance-evaluation/",
+                )
+            ]
+        ]
+
         await update.message.reply_text(
             grading_system_text(),
-            reply_markup=get_academic_info_keyboard(),
+            reply_markup=InlineKeyboardMarkup(keyboard),
             parse_mode="HTML",
         )
         return
@@ -292,8 +391,7 @@ async def academic_info_main_menu(
     context: ContextTypes.DEFAULT_TYPE,
 ):
     await update.message.reply_text(
-        "🏠 **Main Menu**\n\n"
-        "Select an option from the menu below.",
+        "🏠 **Main Menu**\n\n" "Select an option from the menu below.",
         reply_markup=get_main_menu(),
         parse_mode="Markdown",
     )
@@ -308,9 +406,7 @@ async def academic_info_callback(
     await query.answer()
 
     if query.data == "acad_back":
-        await query.edit_message_text(
-            "Use /start to return to the main menu."
-        )
+        await query.edit_message_text("Use /start to return to the main menu.")
         return
 
     if query.data == "acad_back_info":
@@ -318,7 +414,7 @@ async def academic_info_callback(
             [
                 InlineKeyboardButton(
                     "🎓 Admission",
-                    url="https://www.uiu.ac.bd/admission/",
+                    url="https://admission.uiu.ac.bd/Admission/Home.aspx",
                 ),
                 InlineKeyboardButton(
                     "📝 Registration",
@@ -354,11 +450,8 @@ async def academic_info_callback(
         ]
 
         await query.edit_message_text(
-            "📚 **Academic Information**\n\n"
-            "Select a topic:",
-            reply_markup=InlineKeyboardMarkup(
-                keyboard
-            ),
+            "📚 **Academic Information**\n\n" "Select a topic:",
+            reply_markup=InlineKeyboardMarkup(keyboard),
             parse_mode="Markdown",
         )
         return
@@ -375,9 +468,7 @@ async def academic_info_callback(
 
         await query.edit_message_text(
             grading_system_text(),
-            reply_markup=InlineKeyboardMarkup(
-                keyboard
-            ),
+            reply_markup=InlineKeyboardMarkup(keyboard),
             parse_mode="HTML",
         )
         return
@@ -385,21 +476,24 @@ async def academic_info_callback(
     information = {
         "acad_registration": (
             "📝 **Registration**\n\n"
-            "Course registration information and "
-            "deadlines should be verified through "
-            "UCAM and official UIU announcements."
+            "Course selection, section selection and "
+            "course registration are handled through "
+            "the official UIU registration systems.\n\n"
+            "Please verify the latest registration notice "
+            "before registering."
         ),
         "acad_credit": (
             "📊 **Credit System**\n\n"
-            "Credit requirements depend on the "
-            "academic program. Check your department's "
-            "official curriculum."
+            "Credit requirements depend on the academic "
+            "program and curriculum.\n\n"
+            "Please verify your exact program requirement "
+            "from official UIU sources."
         ),
         "acad_retake": (
             "🔄 **Retake Rules**\n\n"
-            "Retake and improvement policies may change. "
-            "Please verify the current policy through "
-            "official UIU sources."
+            "Retake and improvement policies may vary "
+            "according to the applicable academic rules.\n\n"
+            "Please verify the latest policy from UIU."
         ),
     }
 
@@ -419,9 +513,7 @@ async def academic_info_callback(
 
     await query.edit_message_text(
         text,
-        reply_markup=InlineKeyboardMarkup(
-            keyboard
-        ),
+        reply_markup=InlineKeyboardMarkup(keyboard),
         parse_mode="Markdown",
     )
 
@@ -446,16 +538,12 @@ async def notices(
     update: Update,
     context: ContextTypes.DEFAULT_TYPE,
 ):
-    await update.message.reply_text(
-        "⏳ Fetching latest notices from UIU website..."
-    )
+    await update.message.reply_text("⏳ Fetching latest notices from UIU website...")
 
     feed_url = "https://www.uiu.ac.bd/notice/feed/"
 
     try:
-        feed = feedparser.parse(
-            feed_url
-        )
+        feed = feedparser.parse(feed_url)
 
         if feed.entries:
             msg = "📢 **Latest UIU Notices:**\n\n"
@@ -471,10 +559,7 @@ async def notices(
                     "",
                 )
 
-                msg += (
-                    f"📌 **{title}**\n"
-                    f"🔗 [Read Full Notice]({link})\n\n"
-                )
+                msg += f"📌 **{title}**\n" f"🔗 [Read Full Notice]({link})\n\n"
 
             await update.message.reply_text(
                 msg,
@@ -490,9 +575,7 @@ async def notices(
             error,
         )
 
-    db_notices = get_recent_notices(
-        5
-    )
+    db_notices = get_recent_notices(5)
 
     if db_notices:
         msg = "📢 **Recent UIU Notices:**\n\n"
@@ -505,10 +588,7 @@ async def notices(
                 "",
             )
 
-            msg += (
-                f"📌 **{title}**\n"
-                f"🔗 [Read Full Notice]({link})\n\n"
-            )
+            msg += f"📌 **{title}**\n" f"🔗 [Read Full Notice]({link})\n\n"
 
         await update.message.reply_text(
             msg,
@@ -518,8 +598,7 @@ async def notices(
 
     else:
         await update.message.reply_text(
-            "📢 No notices available right now. "
-            "Please check back later."
+            "📢 No notices available right now. " "Please check back later."
         )
 
 
@@ -529,15 +608,9 @@ async def settings_menu(
 ):
     user_id = update.effective_user.id
 
-    status = get_notification_status(
-        user_id
-    )
+    status = get_notification_status(user_id)
 
-    status_text = (
-        "🟢 ON"
-        if status
-        else "🔴 OFF"
-    )
+    status_text = "🟢 ON" if status else "🔴 OFF"
 
     keyboard = [
         [
@@ -549,11 +622,8 @@ async def settings_menu(
     ]
 
     await update.message.reply_text(
-        "⚙️ **Settings**\n\n"
-        "Manage your notification preferences.",
-        reply_markup=InlineKeyboardMarkup(
-            keyboard
-        ),
+        "⚙️ **Settings**\n\n" "Manage your notification preferences.",
+        reply_markup=InlineKeyboardMarkup(keyboard),
         parse_mode="Markdown",
     )
 
@@ -569,15 +639,9 @@ async def settings_callback(
     if query.data == "toggle_alerts":
         user_id = query.from_user.id
 
-        new_status = toggle_notification(
-            user_id
-        )
+        new_status = toggle_notification(user_id)
 
-        status_text = (
-            "🟢 ON"
-            if new_status
-            else "🔴 OFF"
-        )
+        status_text = "🟢 ON" if new_status else "🔴 OFF"
 
         keyboard = [
             [
@@ -589,19 +653,14 @@ async def settings_callback(
         ]
 
         await query.edit_message_text(
-            "⚙️ **Settings**\n\n"
-            f"🔔 Notifications are now "
-            f"{status_text}.",
-            reply_markup=InlineKeyboardMarkup(
-                keyboard
-            ),
+            "⚙️ **Settings**\n\n" f"🔔 Notifications are now " f"{status_text}.",
+            reply_markup=InlineKeyboardMarkup(keyboard),
             parse_mode="Markdown",
         )
 
     elif query.data == "settings_back":
         await query.message.reply_text(
-            "🏠 **Main Menu**\n\n"
-            "Select an option from the menu below.",
+            "🏠 **Main Menu**\n\n" "Select an option from the menu below.",
             reply_markup=get_main_menu(),
             parse_mode="Markdown",
         )
@@ -612,8 +671,7 @@ async def handle_cancel(
     context: ContextTypes.DEFAULT_TYPE,
 ):
     await update.message.reply_text(
-        "❌ Action cancelled.\n\n"
-        "Returning to the main menu.",
+        "❌ Action cancelled.\n\n" "Returning to the main menu.",
         reply_markup=get_main_menu(),
     )
 

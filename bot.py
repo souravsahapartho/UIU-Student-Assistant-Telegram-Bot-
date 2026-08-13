@@ -119,12 +119,14 @@ logging.basicConfig(
 
 logger = logging.getLogger(__name__)
 
+
 WEBHOOK_PATH = "/telegram/webhook"
 
 WEBHOOK_SECRET = os.getenv(
     "WEBHOOK_SECRET",
     "",
 )
+
 
 telegram_app = Application.builder().token(Config.BOT_TOKEN).build()
 
@@ -178,6 +180,7 @@ async def send_calendar_notifications(
                     reply_markup=reply_markup,
                     parse_mode="HTML",
                 )
+
             except Exception as error:
                 logger.warning(
                     "Calendar notification failed for %s: %s",
@@ -224,6 +227,7 @@ async def send_calendar_notifications(
                     reply_markup=reply_markup,
                     parse_mode="HTML",
                 )
+
             except Exception as error:
                 logger.warning(
                     "Calendar update notification failed for %s: %s",
@@ -671,9 +675,7 @@ async def error_handler(
 
         if message:
             try:
-                await message.reply_text(
-                    "⚠️ Something went wrong. " "Please try again."
-                )
+                await message.reply_text("⚠️ Something went wrong. Please try again.")
             except Exception:
                 pass
 
@@ -682,6 +684,7 @@ async def error_handler(
 async def lifespan(
     fastapi_app: FastAPI,
 ):
+
     Config.validate()
 
     init_db()
@@ -710,6 +713,7 @@ async def lifespan(
     render_url = os.getenv("RENDER_EXTERNAL_URL")
 
     if render_url:
+
         webhook_url = render_url.rstrip("/") + WEBHOOK_PATH
 
         webhook_args = {
@@ -728,16 +732,19 @@ async def lifespan(
         )
 
     else:
-        logger.info("Local mode detected. " "Webhook configuration skipped.")
 
-    logger.info("UIU Sstudent Assistant is running.")
+        logger.info("Local mode detected. Webhook configuration skipped.")
+
+    logger.info("UIU Student Assistant is running.")
 
     try:
         yield
 
     finally:
+
         try:
             await telegram_app.stop()
+
         except Exception as error:
             logger.warning(
                 "Telegram application stop failed: %s",
@@ -746,6 +753,7 @@ async def lifespan(
 
         try:
             await telegram_app.shutdown()
+
         except Exception as error:
             logger.warning(
                 "Telegram application shutdown failed: %s",
@@ -754,21 +762,23 @@ async def lifespan(
 
 
 app = FastAPI(
-    title="UIU Sstudent Assistant",
+    title="UIU Student Assistant",
     lifespan=lifespan,
 )
 
 
 @app.get("/")
 async def root():
+
     return {
         "status": "online",
-        "service": "UIU Sstudent Assistant",
+        "service": "UIU Student Assistant",
     }
 
 
 @app.get("/health")
 async def health():
+
     return {
         "status": "ok",
         "telegram": "webhook",
@@ -778,6 +788,7 @@ async def health():
 
 @app.head("/health")
 async def health_head():
+
     return None
 
 
@@ -785,16 +796,20 @@ async def health_head():
 async def telegram_webhook(
     request: Request,
 ):
+
     if WEBHOOK_SECRET:
+
         received_secret = request.headers.get("X-Telegram-Bot-Api-Secret-Token")
 
         if received_secret != WEBHOOK_SECRET:
+
             raise HTTPException(
                 status_code=403,
                 detail="Invalid webhook secret",
             )
 
     try:
+
         data = await request.json()
 
         update_id = data.get("update_id")
@@ -810,11 +825,13 @@ async def telegram_webhook(
         )
 
         if update is not None:
+
             asyncio.create_task(telegram_app.process_update(update))
 
         return {"ok": True}
 
     except Exception as error:
+
         logger.error(
             "Webhook processing error: %s",
             error,
@@ -828,6 +845,7 @@ async def telegram_webhook(
 
 
 if __name__ == "__main__":
+
     import uvicorn
 
     port = int(
