@@ -132,7 +132,10 @@ async def important_links(
     update: Update,
     context: ContextTypes.DEFAULT_TYPE,
 ):
-    text = "🔗 **Important UIU Links**\n\n" "Select a link below to open it."
+    text = (
+        "🔗 **Important UIU Links**\n\n"
+        "Select a link below to open it."
+    )
 
     await update.message.reply_text(
         text,
@@ -205,7 +208,8 @@ async def academic_info(
     context: ContextTypes.DEFAULT_TYPE,
 ):
     await update.message.reply_text(
-        "📚 **Academic Information**\n\n" "Select a topic from the menu below:",
+        "📚 **Academic Information**\n\n"
+        "Select a topic from the menu below:",
         reply_markup=get_academic_info_keyboard(),
         parse_mode="Markdown",
     )
@@ -288,7 +292,8 @@ async def academic_info_main_menu(
     context: ContextTypes.DEFAULT_TYPE,
 ):
     await update.message.reply_text(
-        "🏠 **Main Menu**\n\n" "Select an option from the menu below.",
+        "🏠 **Main Menu**\n\n"
+        "Select an option from the menu below.",
         reply_markup=get_main_menu(),
         parse_mode="Markdown",
     )
@@ -303,7 +308,9 @@ async def academic_info_callback(
     await query.answer()
 
     if query.data == "acad_back":
-        await query.edit_message_text("Use /start to return to the main menu.")
+        await query.edit_message_text(
+            "Use /start to return to the main menu."
+        )
         return
 
     if query.data == "acad_back_info":
@@ -347,8 +354,11 @@ async def academic_info_callback(
         ]
 
         await query.edit_message_text(
-            "📚 **Academic Information**\n\n" "Select a topic:",
-            reply_markup=InlineKeyboardMarkup(keyboard),
+            "📚 **Academic Information**\n\n"
+            "Select a topic:",
+            reply_markup=InlineKeyboardMarkup(
+                keyboard
+            ),
             parse_mode="Markdown",
         )
         return
@@ -365,7 +375,9 @@ async def academic_info_callback(
 
         await query.edit_message_text(
             grading_system_text(),
-            reply_markup=InlineKeyboardMarkup(keyboard),
+            reply_markup=InlineKeyboardMarkup(
+                keyboard
+            ),
             parse_mode="HTML",
         )
         return
@@ -407,7 +419,9 @@ async def academic_info_callback(
 
     await query.edit_message_text(
         text,
-        reply_markup=InlineKeyboardMarkup(keyboard),
+        reply_markup=InlineKeyboardMarkup(
+            keyboard
+        ),
         parse_mode="Markdown",
     )
 
@@ -432,12 +446,16 @@ async def notices(
     update: Update,
     context: ContextTypes.DEFAULT_TYPE,
 ):
-    await update.message.reply_text("⏳ Fetching latest notices from UIU website...")
+    await update.message.reply_text(
+        "⏳ Fetching latest notices from UIU website..."
+    )
 
     feed_url = "https://www.uiu.ac.bd/notice/feed/"
 
     try:
-        feed = feedparser.parse(feed_url)
+        feed = feedparser.parse(
+            feed_url
+        )
 
         if feed.entries:
             msg = "📢 **Latest UIU Notices:**\n\n"
@@ -453,7 +471,10 @@ async def notices(
                     "",
                 )
 
-                msg += f"📌 **{title}**\n" f"🔗 [Read Full Notice]({link})\n\n"
+                msg += (
+                    f"📌 **{title}**\n"
+                    f"🔗 [Read Full Notice]({link})\n\n"
+                )
 
             await update.message.reply_text(
                 msg,
@@ -469,19 +490,25 @@ async def notices(
             error,
         )
 
-    db_notices = get_recent_notices(5)
+    db_notices = get_recent_notices(
+        5
+    )
 
     if db_notices:
         msg = "📢 **Recent UIU Notices:**\n\n"
 
         for notice in db_notices:
             title = notice["title"]
+
             link = notice.get(
                 "link",
                 "",
             )
 
-            msg += f"📌 **{title}**\n" f"🔗 [Read Full Notice]({link})\n\n"
+            msg += (
+                f"📌 **{title}**\n"
+                f"🔗 [Read Full Notice]({link})\n\n"
+            )
 
         await update.message.reply_text(
             msg,
@@ -491,7 +518,8 @@ async def notices(
 
     else:
         await update.message.reply_text(
-            "📢 No notices available right now. " "Please check back later."
+            "📢 No notices available right now. "
+            "Please check back later."
         )
 
 
@@ -501,9 +529,15 @@ async def settings_menu(
 ):
     user_id = update.effective_user.id
 
-    status = get_notification_status(user_id)
+    status = get_notification_status(
+        user_id
+    )
 
-    status_text = "🟢 ON" if status else "🔴 OFF"
+    status_text = (
+        "🟢 ON"
+        if status
+        else "🔴 OFF"
+    )
 
     keyboard = [
         [
@@ -512,17 +546,14 @@ async def settings_menu(
                 callback_data="toggle_alerts",
             )
         ],
-        [
-            InlineKeyboardButton(
-                "⬅️ Main Menu",
-                callback_data="settings_back",
-            )
-        ],
     ]
 
     await update.message.reply_text(
-        "⚙️ **Settings**\n\n" "Manage your notification preferences.",
-        reply_markup=InlineKeyboardMarkup(keyboard),
+        "⚙️ **Settings**\n\n"
+        "Manage your notification preferences.",
+        reply_markup=InlineKeyboardMarkup(
+            keyboard
+        ),
         parse_mode="Markdown",
     )
 
@@ -538,9 +569,15 @@ async def settings_callback(
     if query.data == "toggle_alerts":
         user_id = query.from_user.id
 
-        new_status = toggle_notification(user_id)
+        new_status = toggle_notification(
+            user_id
+        )
 
-        status_text = "🟢 ON" if new_status else "🔴 OFF"
+        status_text = (
+            "🟢 ON"
+            if new_status
+            else "🔴 OFF"
+        )
 
         keyboard = [
             [
@@ -549,23 +586,22 @@ async def settings_callback(
                     callback_data="toggle_alerts",
                 )
             ],
-            [
-                InlineKeyboardButton(
-                    "⬅️ Main Menu",
-                    callback_data="settings_back",
-                )
-            ],
         ]
 
         await query.edit_message_text(
-            "⚙️ **Settings**\n\n" f"🔔 Notifications are now " f"{status_text}.",
-            reply_markup=InlineKeyboardMarkup(keyboard),
+            "⚙️ **Settings**\n\n"
+            f"🔔 Notifications are now "
+            f"{status_text}.",
+            reply_markup=InlineKeyboardMarkup(
+                keyboard
+            ),
             parse_mode="Markdown",
         )
 
     elif query.data == "settings_back":
         await query.message.reply_text(
-            "🏠 **Main Menu**\n\n" "Select an option from the menu below.",
+            "🏠 **Main Menu**\n\n"
+            "Select an option from the menu below.",
             reply_markup=get_main_menu(),
             parse_mode="Markdown",
         )
@@ -576,7 +612,8 @@ async def handle_cancel(
     context: ContextTypes.DEFAULT_TYPE,
 ):
     await update.message.reply_text(
-        "❌ Action cancelled.\n\n" "Returning to the main menu.",
+        "❌ Action cancelled.\n\n"
+        "Returning to the main menu.",
         reply_markup=get_main_menu(),
     )
 
