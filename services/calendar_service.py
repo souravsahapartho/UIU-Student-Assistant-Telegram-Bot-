@@ -1,11 +1,14 @@
 import hashlib
-import logging
 import re
+from urllib.parse import urljoin
 
 import httpx
 from bs4 import BeautifulSoup
 
-logger = logging.getLogger(__name__)
+from database import (
+    get_calendar_by_url,
+    save_calendar,
+)
 
 CALENDAR_URL = "https://www.uiu.ac.bd/academics/calendar/"
 
@@ -15,27 +18,9 @@ HEADERS = {
         "AppleWebKit/537.36 (KHTML, like Gecko) "
         "Chrome/151.0 Safari/537.36"
     ),
-    "Accept": "text/html,application/xhtml+xml,application/xml;q=0.9,*/*;q=0.8",
+    "Accept": ("text/html,application/xhtml+xml," "application/xml;q=0.9,*/*;q=0.8"),
     "Accept-Language": "en-US,en;q=0.9",
 }
-
-BLOCKED_TERMS = (
-    "news",
-    "notice",
-    "notices",
-    "event",
-    "events",
-    "scholarship award list",
-    "course enrollment",
-    "orientation notice",
-    "gymnasium",
-    "seminar",
-    "workshop",
-    "spotlight",
-    "download pdf",
-    "view more",
-    "print",
-)
 
 
 def clean_text(text):
@@ -46,139 +31,36 @@ def clean_text(text):
     ).strip()
 
 
-def normalize_url(url):
-    if not url:
-        return ""
-
-    url = url.strip()
-
-    if url.startswith("//"):
-        return "https:" + url
-
-    if url.startswith("/"):
-        return "https://www.uiu.ac.bd" + url
-
-    return url
+def make_hash(text):
+    return hashlib.sha256(text.encode("utf-8")).hexdigest()
 
 
-def normalize_title(title):
-    title = clean_text(title)
-
-    title = re.sub(
-        r"\s+\d{4}$",
-        "",
-        title,
+async def fetch_calendar_page():
+    timeout = httpx.Timeout(
+        30.0,
+        connect=15.0,
     )
 
-    return title.strip()
+    async with httpx.AsyncClient(
+        headers=HEADERS,
+        timeout=timeout,
+        follow_redirects=True,
+    ) as client:
+
+        response = await client.get(CALENDAR_URL)
+
+        response.raise_for_status()
+
+        return response.text
 
 
-def is_calendar_title(title):
-    title = normalize_title(title)
-    lower = title.lower()
-
-    if not title:
-        return False
-
-    if any(term in lower for term in BLOCKED_TERMS):
-        return False
-
-    if not re.search(
-        r"\b20\d{2}\b",
-        title,
-    ):
-        return False
-
-    calendar_terms = (
-        "semester",
-        "trimester",
-        "b. pharm",
-        "b pharm",
-    )
-
-    return any(term in lower for term in calendar_terms)
-
-
-def extract_year(title):
-    match = re.search(
-        r"\b20\d{2}\b",
-        title,
-    )
-
-    if match:
-        return match.group(1)
-
-    return ""
-
-
-def make_id(title, url):
-    value = f"{title.strip().lower()}|" f"{url.strip().lower()}"
-
-    return hashlib.sha256(value.encode("utf-8")).hexdigest()
-
-
-def get_link_title(link):
-    title = clean_text(
-        link.get_text(
-            " ",
-            strip=True,
-        )
-    )
-
-    if title:
-        return title
-
-    image = link.find("img")
-
-    if image:
-        return clean_text(
-            image.get(
-                "alt",
-                "",
-            )
-        )
-
-    return ""
-
-
-def get_parent_calendar_title(link):
-    candidates = []
-
-    current = link
-
-    for _ in range(6):
-        if not current:
-            break
-
-        text = clean_text(
-            current.get_text(
-                " ",
-                strip=True,
-            )
-        )
-
-        if text:
-            candidates.append(text)
-
-        current = current.parent
-
-    for text in candidates:
-        if is_calendar_title(text):
-            return normalize_title(text)
-
-    return ""
-
-
-def extract_calendar_entries(html):
+def parse_calendars(html):
     soup = BeautifulSoup(
         html,
         "html.parser",
     )
 
-    entries = []
-    seen = set()
-
-    academic_heading = None
+    results = []
 
     for heading in soup.find_all(
         [
@@ -190,119 +72,147 @@ def extract_calendar_entries(html):
             "h6",
         ]
     ):
-        text = clean_text(
+        title = clean_text(
             heading.get_text(
                 " ",
                 strip=True,
             )
         )
 
-        if text.lower() == "academic calendar":
-            academic_heading = heading
-            break
-
-    links = soup.find_all(
-        "a",
-        href=True,
-    )
-
-    for link in links:
-        href = normalize_url(
-            link.get(
-                "href",
-                "",
-            )
-        )
-
-        if not href:
-            continue
-
-        if "/academics/calendar/" not in href:
-            continue
-
-        if href.rstrip("/") == CALENDAR_URL.rstrip("/"):
-            continue
-
-        title = get_link_title(link)
-
-        if not is_calendar_title(title):
-            title = get_parent_calendar_title(link)
-
         if not title:
             continue
 
-        title = normalize_title(title)
+        lowered = title.lower()
 
-        if not is_calendar_title(title):
+        if "trimester" not in lowered and "semester" not in lowered:
             continue
 
-        if any(
-            x in href.lower()
-            for x in (
-                "#",
-                "javascript:",
-            )
-        ):
+        parent = heading.parent
+
+        if not parent:
             continue
 
-        key = href.rstrip("/").lower()
-
-        if key in seen:
-            continue
-
-        seen.add(key)
-
-        entries.append(
-            {
-                "id": make_id(
-                    title,
-                    href,
-                ),
-                "title": title,
-                "url": href,
-                "year": extract_year(
-                    title,
-                ),
-            }
+        links = parent.find_all(
+            "a",
+            href=True,
         )
 
-    if not entries and academic_heading:
-        section_text = clean_text(
-            academic_heading.parent.get_text(
+        if not links:
+            next_parent = parent.parent
+
+            if next_parent:
+                links = next_parent.find_all(
+                    "a",
+                    href=True,
+                )
+
+        if not links:
+            continue
+
+        page_url = None
+        pdf_url = None
+
+        for link in links:
+            href = link.get(
+                "href",
+                "",
+            ).strip()
+
+            if not href:
+                continue
+
+            full_url = urljoin(
+                CALENDAR_URL,
+                href,
+            )
+
+            lower_url = full_url.lower()
+
+            if ".pdf" in lower_url:
+                pdf_url = full_url
+
+            elif "/academics/calendar/" in lower_url:
+                page_url = full_url
+
+        url = page_url or pdf_url
+
+        if not url:
+            continue
+
+        content = clean_text(
+            parent.get_text(
                 " ",
                 strip=True,
             )
         )
 
-        logger.warning(
-            "Academic Calendar section found but no links extracted. Text: %s",
-            section_text[:1000],
+        if len(content) < 20:
+            continue
+
+        content_hash = make_hash(title + "|" + content + "|" + url)
+
+        results.append(
+            {
+                "title": title,
+                "url": url,
+                "content": content,
+                "content_hash": content_hash,
+            }
         )
 
-    return entries
+    unique = {}
+
+    for item in results:
+        unique[item["url"]] = item
+
+    return list(unique.values())
 
 
 async def fetch_calendars():
-    async with httpx.AsyncClient(
-        headers=HEADERS,
-        timeout=30,
-        follow_redirects=True,
-    ) as client:
+    html = await fetch_calendar_page()
 
-        response = await client.get(CALENDAR_URL)
+    calendars = parse_calendars(html)
 
-        response.raise_for_status()
-
-        return extract_calendar_entries(response.text)
+    return calendars
 
 
-async def get_latest_calendars(
-    limit=5,
-):
+async def sync_calendars():
     calendars = await fetch_calendars()
 
-    return calendars[:limit]
+    new_items = []
+    updated_items = []
 
+    for calendar in calendars:
+        url = calendar["url"]
 
-async def get_all_calendars():
-    return await fetch_calendars()
+        existing = get_calendar_by_url(url)
+
+        if existing is None:
+            save_calendar(
+                calendar["title"],
+                calendar["url"],
+                calendar["content_hash"],
+                calendar["content"],
+            )
+
+            new_items.append(calendar)
+
+            continue
+
+        old_hash = existing["content_hash"]
+
+        if old_hash != calendar["content_hash"]:
+            save_calendar(
+                calendar["title"],
+                calendar["url"],
+                calendar["content_hash"],
+                calendar["content"],
+            )
+
+            updated_items.append(calendar)
+
+    return {
+        "calendars": calendars,
+        "new": new_items,
+        "updated": updated_items,
+    }
