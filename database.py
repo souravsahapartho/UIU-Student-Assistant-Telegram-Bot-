@@ -425,6 +425,67 @@ def set_notification_status(
     conn.close()
 
 
+def toggle_notification(
+    telegram_id: int,
+):
+    conn = get_connection()
+    cursor = conn.cursor()
+
+    cursor.execute(
+        """
+        SELECT enabled
+        FROM notification_settings
+        WHERE telegram_id = ?
+        """,
+        (telegram_id,),
+    )
+
+    row = cursor.fetchone()
+
+    if row is None:
+
+        new_status = 1
+
+        cursor.execute(
+            """
+            INSERT INTO notification_settings (
+                telegram_id,
+                enabled
+            )
+            VALUES (?, ?)
+            """,
+            (
+                telegram_id,
+                new_status,
+            ),
+        )
+
+    else:
+
+        current_status = bool(row["enabled"])
+
+        new_status = 0 if current_status else 1
+
+        cursor.execute(
+            """
+            UPDATE notification_settings
+            SET
+                enabled = ?,
+                updated_at = CURRENT_TIMESTAMP
+            WHERE telegram_id = ?
+            """,
+            (
+                new_status,
+                telegram_id,
+            ),
+        )
+
+    conn.commit()
+    conn.close()
+
+    return bool(new_status)
+
+
 def get_notification_users():
     conn = get_connection()
     cursor = conn.cursor()
