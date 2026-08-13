@@ -120,7 +120,6 @@ def estimate_higher_students_from_gpa(
     total_students,
 ):
     gpa = float(gpa)
-
     total_students = int(total_students)
 
     gpa = max(
@@ -410,7 +409,6 @@ def top_range_from_positions(
     percentages = [(position / total_students) * 100 for position in positions]
 
     low = min(percentages)
-
     high = max(percentages)
 
     low = max(
@@ -435,7 +433,7 @@ def round_probability(
     percentage = float(probability) * 100
 
     if percentage < 1:
-        return "<1%"
+        return "&lt;1%"
 
     rounded = int(round(percentage / 5) * 5)
 
