@@ -1,7 +1,7 @@
 from telegram import (
-    Update,
     InlineKeyboardButton,
     InlineKeyboardMarkup,
+    Update,
 )
 
 from telegram.ext import ContextTypes
@@ -15,33 +15,22 @@ async def academic_calendar(
     update: Update,
     context: ContextTypes.DEFAULT_TYPE,
 ):
-
-    message = update.message
-
-    if not message:
+    if not update.message:
         return
 
-    await message.reply_text("⏳ Loading academic calendars...")
-
     try:
-
-        calendars = await get_latest_calendars()
+        calendars = await get_latest_calendars(limit=5)
 
         if not calendars:
-
-            await message.reply_text(
-                "📅 No academic calendar "
-                "is available right now.\n\n"
-                "Please try again later."
+            await update.message.reply_text(
+                "📅 No academic calendars found.\n\n" "Please try again later."
             )
-
             return
 
-        text = (
-            "📅 *UIU Academic Calendar*\n\n"
-            "Here are the latest 5 academic "
-            "calendars available from UIU:\n"
-        )
+        lines = [
+            "📅 <b>Academic Calendar</b>",
+            "",
+        ]
 
         buttons = []
 
@@ -49,15 +38,9 @@ async def academic_calendar(
             calendars,
             start=1,
         ):
-
             title = calendar.get(
                 "title",
                 "Academic Calendar",
-            )
-
-            url = calendar.get(
-                "url",
-                "",
             )
 
             year = calendar.get(
@@ -65,20 +48,19 @@ async def academic_calendar(
                 "",
             )
 
+            url = calendar.get(
+                "url",
+                "",
+            )
+
+            lines.append(f"<b>{index}. {title}</b>")
+
             if year:
-                display_title = f"{title}"
-            else:
-                display_title = title
+                lines.append(f"📅 {year}")
 
-            text += f"\n*{index}. {display_title}*"
-
-            if year:
-                text += f"\n📆 {year}"
-
-            text += "\n"
+            lines.append("")
 
             if url:
-
                 buttons.append(
                     [
                         InlineKeyboardButton(
@@ -88,19 +70,17 @@ async def academic_calendar(
                     ]
                 )
 
-        text += "\n🔗 Each button opens the " "original UIU calendar page/document."
+        lines.append("🔗 Each button opens the original UIU academic calendar page.")
 
-        await message.reply_text(
-            text,
-            parse_mode="Markdown",
-            reply_markup=(InlineKeyboardMarkup(buttons) if buttons else None),
+        await update.message.reply_text(
+            "\n".join(lines),
+            parse_mode="HTML",
+            reply_markup=InlineKeyboardMarkup(buttons),
             disable_web_page_preview=True,
         )
 
     except Exception:
-
-        await message.reply_text(
-            "⚠️ Unable to load academic "
-            "calendars right now.\n\n"
+        await update.message.reply_text(
+            "⚠️ Unable to load academic calendars right now.\n\n"
             "Please try again later."
         )
