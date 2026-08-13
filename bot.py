@@ -5,11 +5,7 @@ from contextlib import asynccontextmanager
 
 from fastapi import FastAPI, HTTPException, Request
 
-from telegram import (
-    Update,
-    InlineKeyboardButton,
-    InlineKeyboardMarkup,
-)
+from telegram import Update, InlineKeyboardButton, InlineKeyboardMarkup
 
 from telegram.ext import (
     Application,
@@ -52,7 +48,6 @@ from handlers.general import (
     show_about,
     show_help,
     handle_cancel,
-    show_not_implemented,
     academic_info,
     academic_info_callback,
     academic_info_menu_handler,
@@ -109,7 +104,6 @@ from handlers.scholarship import (
 
 from services.calendar_service import sync_calendars
 
-
 logging.basicConfig(
     format="%(asctime)s - %(name)s - %(levelname)s - %(message)s",
     level=logging.INFO,
@@ -118,15 +112,9 @@ logging.basicConfig(
 logger = logging.getLogger(__name__)
 
 WEBHOOK_PATH = "/telegram/webhook"
+WEBHOOK_SECRET = os.getenv("WEBHOOK_SECRET", "")
 
-WEBHOOK_SECRET = os.getenv(
-    "WEBHOOK_SECRET",
-    "",
-)
-
-telegram_app = Application.builder().token(
-    Config.BOT_TOKEN
-).build()
+telegram_app = Application.builder().token(Config.BOT_TOKEN).build()
 
 
 async def send_calendar_notifications(
@@ -168,11 +156,7 @@ async def send_calendar_notifications(
                 ]
             )
 
-        reply_markup = (
-            InlineKeyboardMarkup(keyboard)
-            if keyboard
-            else None
-        )
+        reply_markup = InlineKeyboardMarkup(keyboard) if keyboard else None
 
         for telegram_id in users:
             try:
@@ -218,11 +202,7 @@ async def send_calendar_notifications(
                 ]
             )
 
-        reply_markup = (
-            InlineKeyboardMarkup(keyboard)
-            if keyboard
-            else None
-        )
+        reply_markup = InlineKeyboardMarkup(keyboard) if keyboard else None
 
         for telegram_id in users:
             try:
@@ -267,9 +247,7 @@ async def calendar_update_job(
                 1,
             )
 
-            logger.info(
-                "Academic calendar initialized without notification."
-            )
+            logger.info("Academic calendar initialized without notification.")
 
             return
 
@@ -295,105 +273,75 @@ def setup_handlers():
     cgpa_handler = ConversationHandler(
         entry_points=[
             MessageHandler(
-                filters.Regex(
-                    r"^🎓 CGPA Calculator$"
-                ),
+                filters.Regex(r"^🎓 CGPA Calculator$"),
                 cgpa_start,
             )
         ],
-
         states={
             CGPA_PREV_CREDITS: [
                 MessageHandler(
-                    filters.Regex(
-                        r"^📚 Grading System$"
-                    ),
+                    filters.Regex(r"^📚 Grading System$"),
                     cgpa_grading_callback,
                 ),
                 MessageHandler(
                     filters.TEXT
                     & ~filters.COMMAND
-                    & ~filters.Regex(
-                        r"^(❌ Cancel|📚 Grading System)$"
-                    ),
+                    & ~filters.Regex(r"^(❌ Cancel|📚 Grading System)$"),
                     get_prev_credits,
                 ),
             ],
-
             CGPA_PREV_CGPA: [
                 MessageHandler(
-                    filters.Regex(
-                        r"^📚 Grading System$"
-                    ),
+                    filters.Regex(r"^📚 Grading System$"),
                     cgpa_grading_callback,
                 ),
                 MessageHandler(
                     filters.TEXT
                     & ~filters.COMMAND
-                    & ~filters.Regex(
-                        r"^(❌ Cancel|📚 Grading System)$"
-                    ),
+                    & ~filters.Regex(r"^(❌ Cancel|📚 Grading System)$"),
                     get_prev_cgpa,
                 ),
             ],
-
             CGPA_COURSE_COUNT: [
                 MessageHandler(
-                    filters.Regex(
-                        r"^📚 Grading System$"
-                    ),
+                    filters.Regex(r"^📚 Grading System$"),
                     cgpa_grading_callback,
                 ),
                 MessageHandler(
                     filters.TEXT
                     & ~filters.COMMAND
-                    & ~filters.Regex(
-                        r"^(❌ Cancel|📚 Grading System)$"
-                    ),
+                    & ~filters.Regex(r"^(❌ Cancel|📚 Grading System)$"),
                     get_course_count,
                 ),
             ],
-
             CGPA_COURSE_CREDIT: [
                 MessageHandler(
-                    filters.Regex(
-                        r"^📚 Grading System$"
-                    ),
+                    filters.Regex(r"^📚 Grading System$"),
                     cgpa_grading_callback,
                 ),
                 MessageHandler(
                     filters.TEXT
                     & ~filters.COMMAND
-                    & ~filters.Regex(
-                        r"^(❌ Cancel|📚 Grading System)$"
-                    ),
+                    & ~filters.Regex(r"^(❌ Cancel|📚 Grading System)$"),
                     get_course_credit,
                 ),
             ],
-
             CGPA_COURSE_GRADE: [
                 MessageHandler(
-                    filters.Regex(
-                        r"^📚 Grading System$"
-                    ),
+                    filters.Regex(r"^📚 Grading System$"),
                     cgpa_grading_callback,
                 ),
                 MessageHandler(
                     filters.TEXT
                     & ~filters.COMMAND
-                    & ~filters.Regex(
-                        r"^(❌ Cancel|📚 Grading System)$"
-                    ),
+                    & ~filters.Regex(r"^(❌ Cancel|📚 Grading System)$"),
                     get_course_grade,
                 ),
             ],
         },
-
         fallbacks=[
             MessageHandler(
-                filters.Regex(
-                    r"^❌ Cancel$"
-                ),
+                filters.Regex(r"^❌ Cancel$"),
                 cgpa_cancel,
             ),
             CommandHandler(
@@ -401,7 +349,6 @@ def setup_handlers():
                 cgpa_cancel,
             ),
         ],
-
         per_user=True,
         per_chat=True,
         allow_reentry=True,
@@ -410,108 +357,63 @@ def setup_handlers():
     fee_handler = ConversationHandler(
         entry_points=[
             MessageHandler(
-                filters.Regex(
-                    r"^💰 Fee Calculator$"
-                ),
+                filters.Regex(r"^💰 Fee Calculator$"),
                 fee_start,
             )
         ],
-
         states={
             FEE_ACADEMIC_SYSTEM: [
                 MessageHandler(
-                    filters.TEXT
-                    & ~filters.COMMAND
-                    & ~filters.Regex(
-                        r"^❌ Cancel$"
-                    ),
+                    filters.TEXT & ~filters.COMMAND & ~filters.Regex(r"^❌ Cancel$"),
                     get_academic_system,
                 )
             ],
-
             FEE_CREDIT_FEE: [
                 MessageHandler(
-                    filters.TEXT
-                    & ~filters.COMMAND
-                    & ~filters.Regex(
-                        r"^❌ Cancel$"
-                    ),
+                    filters.TEXT & ~filters.COMMAND & ~filters.Regex(r"^❌ Cancel$"),
                     get_credit_fee,
                 )
             ],
-
             FEE_TRIMESTER_FEE: [
                 MessageHandler(
-                    filters.TEXT
-                    & ~filters.COMMAND
-                    & ~filters.Regex(
-                        r"^❌ Cancel$"
-                    ),
+                    filters.TEXT & ~filters.COMMAND & ~filters.Regex(r"^❌ Cancel$"),
                     get_trimester_fee,
                 )
             ],
-
             FEE_REG_CREDITS: [
                 MessageHandler(
-                    filters.TEXT
-                    & ~filters.COMMAND
-                    & ~filters.Regex(
-                        r"^❌ Cancel$"
-                    ),
+                    filters.TEXT & ~filters.COMMAND & ~filters.Regex(r"^❌ Cancel$"),
                     get_reg_credits,
                 )
             ],
-
             FEE_RETAKE_COUNT: [
                 MessageHandler(
-                    filters.TEXT
-                    & ~filters.COMMAND
-                    & ~filters.Regex(
-                        r"^❌ Cancel$"
-                    ),
+                    filters.TEXT & ~filters.COMMAND & ~filters.Regex(r"^❌ Cancel$"),
                     get_retake_count,
                 )
             ],
-
             FEE_RETAKE_CREDITS: [
                 MessageHandler(
-                    filters.TEXT
-                    & ~filters.COMMAND
-                    & ~filters.Regex(
-                        r"^❌ Cancel$"
-                    ),
+                    filters.TEXT & ~filters.COMMAND & ~filters.Regex(r"^❌ Cancel$"),
                     get_retake_credits,
                 )
             ],
-
             FEE_DISCOUNT_TYPE: [
                 MessageHandler(
-                    filters.TEXT
-                    & ~filters.COMMAND
-                    & ~filters.Regex(
-                        r"^❌ Cancel$"
-                    ),
+                    filters.TEXT & ~filters.COMMAND & ~filters.Regex(r"^❌ Cancel$"),
                     get_discount_type,
                 )
             ],
-
             FEE_DISCOUNT_PERCENT: [
                 MessageHandler(
-                    filters.TEXT
-                    & ~filters.COMMAND
-                    & ~filters.Regex(
-                        r"^❌ Cancel$"
-                    ),
+                    filters.TEXT & ~filters.COMMAND & ~filters.Regex(r"^❌ Cancel$"),
                     get_discount_percent,
                 )
             ],
-        ],
-
+        },
         fallbacks=[
             MessageHandler(
-                filters.Regex(
-                    r"^❌ Cancel$"
-                ),
+                filters.Regex(r"^❌ Cancel$"),
                 fee_cancel,
             ),
             CommandHandler(
@@ -519,7 +421,6 @@ def setup_handlers():
                 fee_cancel,
             ),
         ],
-
         per_user=True,
         per_chat=True,
         allow_reentry=True,
@@ -528,104 +429,75 @@ def setup_handlers():
     scholarship_handler = ConversationHandler(
         entry_points=[
             MessageHandler(
-                filters.Regex(
-                    r"^🎁 Scholarship Calculator$"
-                ),
+                filters.Regex(r"^🎁 Scholarship Calculator$"),
                 scholarship_start,
             )
         ],
-
         states={
             SCHOLARSHIP_GPA: [
                 MessageHandler(
-                    filters.Regex(
-                        r"^❌ Cancel$"
-                    ),
+                    filters.Regex(r"^❌ Cancel$"),
                     scholarship_cancel,
                 ),
                 MessageHandler(
-                    filters.TEXT
-                    & ~filters.COMMAND,
+                    filters.TEXT & ~filters.COMMAND,
                     scholarship_gpa,
                 ),
             ],
-
             SCHOLARSHIP_PROGRAM: [
                 MessageHandler(
-                    filters.Regex(
-                        r"^❌ Cancel$"
-                    ),
+                    filters.Regex(r"^❌ Cancel$"),
                     scholarship_cancel,
                 ),
                 MessageHandler(
-                    filters.TEXT
-                    & ~filters.COMMAND,
+                    filters.TEXT & ~filters.COMMAND,
                     scholarship_program,
                 ),
             ],
-
             SCHOLARSHIP_SIZE: [
                 MessageHandler(
-                    filters.Regex(
-                        r"^❌ Cancel$"
-                    ),
+                    filters.Regex(r"^❌ Cancel$"),
                     scholarship_cancel,
                 ),
                 MessageHandler(
-                    filters.TEXT
-                    & ~filters.COMMAND,
+                    filters.TEXT & ~filters.COMMAND,
                     scholarship_size,
                 ),
             ],
-
             SCHOLARSHIP_CREDITS: [
                 MessageHandler(
-                    filters.Regex(
-                        r"^❌ Cancel$"
-                    ),
+                    filters.Regex(r"^❌ Cancel$"),
                     scholarship_cancel,
                 ),
                 MessageHandler(
-                    filters.TEXT
-                    & ~filters.COMMAND,
+                    filters.TEXT & ~filters.COMMAND,
                     scholarship_credits,
                 ),
             ],
-
             SCHOLARSHIP_HIGHER_CHOICE: [
                 MessageHandler(
-                    filters.Regex(
-                        r"^❌ Cancel$"
-                    ),
+                    filters.Regex(r"^❌ Cancel$"),
                     scholarship_cancel,
                 ),
                 MessageHandler(
-                    filters.TEXT
-                    & ~filters.COMMAND,
+                    filters.TEXT & ~filters.COMMAND,
                     scholarship_higher_choice,
                 ),
             ],
-
             SCHOLARSHIP_HIGHER_COUNT: [
                 MessageHandler(
-                    filters.Regex(
-                        r"^❌ Cancel$"
-                    ),
+                    filters.Regex(r"^❌ Cancel$"),
                     scholarship_cancel,
                 ),
                 MessageHandler(
-                    filters.TEXT
-                    & ~filters.COMMAND,
+                    filters.TEXT & ~filters.COMMAND,
                     scholarship_higher_count,
                 ),
             ],
-        ],
-
+        },
         fallbacks=[
             MessageHandler(
-                filters.Regex(
-                    r"^❌ Cancel$"
-                ),
+                filters.Regex(r"^❌ Cancel$"),
                 scholarship_cancel,
             ),
             CommandHandler(
@@ -633,7 +505,6 @@ def setup_handlers():
                 scholarship_cancel,
             ),
         ],
-
         per_user=True,
         per_chat=True,
         allow_reentry=True,
@@ -660,23 +531,15 @@ def setup_handlers():
         )
     )
 
-    telegram_app.add_handler(
-        cgpa_handler
-    )
+    telegram_app.add_handler(cgpa_handler)
 
-    telegram_app.add_handler(
-        fee_handler
-    )
+    telegram_app.add_handler(fee_handler)
 
-    telegram_app.add_handler(
-        scholarship_handler
-    )
+    telegram_app.add_handler(scholarship_handler)
 
     telegram_app.add_handler(
         MessageHandler(
-            filters.Regex(
-                r"^📚 Academic Info$"
-            ),
+            filters.Regex(r"^📚 Academic Info$"),
             academic_info,
         )
     )
@@ -692,72 +555,56 @@ def setup_handlers():
 
     telegram_app.add_handler(
         MessageHandler(
-            filters.Regex(
-                r"^⬅️ Main Menu$"
-            ),
+            filters.Regex(r"^⬅️ Main Menu$"),
             academic_info_main_menu,
         )
     )
 
     telegram_app.add_handler(
         MessageHandler(
-            filters.Regex(
-                r"^🔗 Important Links$"
-            ),
+            filters.Regex(r"^🔗 Important Links$"),
             show_links,
         )
     )
 
     telegram_app.add_handler(
         MessageHandler(
-            filters.Regex(
-                r"^📢 Notices$"
-            ),
+            filters.Regex(r"^📢 Notices$"),
             notices,
         )
     )
 
     telegram_app.add_handler(
         MessageHandler(
-            filters.Regex(
-                r"^📅 Academic Calendar$"
-            ),
+            filters.Regex(r"^📅 Academic Calendar$"),
             academic_calendar,
         )
     )
 
     telegram_app.add_handler(
         MessageHandler(
-            filters.Regex(
-                r"^❓ Help$"
-            ),
+            filters.Regex(r"^❓ Help$"),
             show_help,
         )
     )
 
     telegram_app.add_handler(
         MessageHandler(
-            filters.Regex(
-                r"^⚙️ Settings$"
-            ),
+            filters.Regex(r"^⚙️ Settings$"),
             settings_menu,
         )
     )
 
     telegram_app.add_handler(
         MessageHandler(
-            filters.Regex(
-                r"^👤 About$"
-            ),
+            filters.Regex(r"^👤 About$"),
             show_about,
         )
     )
 
     telegram_app.add_handler(
         MessageHandler(
-            filters.Regex(
-                r"^❌ Cancel$"
-            ),
+            filters.Regex(r"^❌ Cancel$"),
             handle_cancel,
         )
     )
@@ -793,10 +640,13 @@ async def error_handler(
         exc_info=context.error,
     )
 
-    if isinstance(
-        update,
-        Update,
-    ) and update.message:
+    if (
+        isinstance(
+            update,
+            Update,
+        )
+        and update.message
+    ):
         try:
             await update.message.reply_text(
                 "⚠️ Something went wrong. Please try again."
@@ -815,9 +665,7 @@ async def lifespan(
 
     setup_handlers()
 
-    telegram_app.add_error_handler(
-        error_handler
-    )
+    telegram_app.add_error_handler(error_handler)
 
     await telegram_app.initialize()
 
@@ -831,23 +679,14 @@ async def lifespan(
             name="academic-calendar-check",
         )
 
-        logger.info(
-            "Academic calendar checker started."
-        )
+        logger.info("Academic calendar checker started.")
 
-    render_url = os.getenv(
-        "RENDER_EXTERNAL_URL"
-    )
+    render_url = os.getenv("RENDER_EXTERNAL_URL")
 
     if not render_url:
-        raise RuntimeError(
-            "RENDER_EXTERNAL_URL is not available."
-        )
+        raise RuntimeError("RENDER_EXTERNAL_URL is not available.")
 
-    webhook_url = (
-        render_url.rstrip("/")
-        + WEBHOOK_PATH
-    )
+    webhook_url = render_url.rstrip("/") + WEBHOOK_PATH
 
     webhook_args = {
         "url": webhook_url,
@@ -855,22 +694,16 @@ async def lifespan(
     }
 
     if WEBHOOK_SECRET:
-        webhook_args[
-            "secret_token"
-        ] = WEBHOOK_SECRET
+        webhook_args["secret_token"] = WEBHOOK_SECRET
 
-    await telegram_app.bot.set_webhook(
-        **webhook_args
-    )
+    await telegram_app.bot.set_webhook(**webhook_args)
 
     logger.info(
         "Webhook configured: %s",
         webhook_url,
     )
 
-    logger.info(
-        "UIU Smart Assistant is running."
-    )
+    logger.info("UIU Smart Assistant is running.")
 
     yield
 
@@ -927,9 +760,7 @@ async def telegram_webhook(
     request: Request,
 ):
     if WEBHOOK_SECRET:
-        received_secret = request.headers.get(
-            "X-Telegram-Bot-Api-Secret-Token"
-        )
+        received_secret = request.headers.get("X-Telegram-Bot-Api-Secret-Token")
 
         if received_secret != WEBHOOK_SECRET:
             raise HTTPException(
@@ -946,15 +777,9 @@ async def telegram_webhook(
         )
 
         if update is not None:
-            asyncio.create_task(
-                telegram_app.process_update(
-                    update
-                )
-            )
+            asyncio.create_task(telegram_app.process_update(update))
 
-        return {
-            "ok": True
-        }
+        return {"ok": True}
 
     except Exception as error:
         logger.error(
