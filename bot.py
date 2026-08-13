@@ -66,6 +66,7 @@ from handlers.cgpa import (
     get_course_grade,
     cgpa_cancel,
     cgpa_grading_callback,
+    cgpa_cancel_callback,
 )
 
 from handlers.fee import (
@@ -102,7 +103,7 @@ logger = logging.getLogger(__name__)
 
 
 # ============================================================
-# WEBHOOK CONFIG
+# WEBHOOK
 # ============================================================
 
 WEBHOOK_PATH = "/telegram/webhook"
@@ -121,7 +122,7 @@ telegram_app = Application.builder().token(Config.BOT_TOKEN).build()
 
 
 # ============================================================
-# CGPA CONVERSATION
+# CGPA CONVERSATION HANDLER
 # ============================================================
 
 
@@ -136,7 +137,7 @@ def create_cgpa_handler():
         ],
         states={
             # ------------------------------------------------
-            # Previous Credits
+            # Step 1
             # ------------------------------------------------
             CGPA_PREV_CREDITS: [
                 MessageHandler(
@@ -145,7 +146,7 @@ def create_cgpa_handler():
                 )
             ],
             # ------------------------------------------------
-            # Previous CGPA
+            # Step 2
             # ------------------------------------------------
             CGPA_PREV_CGPA: [
                 MessageHandler(
@@ -198,7 +199,7 @@ def create_cgpa_handler():
 
 
 # ============================================================
-# FEE CONVERSATION
+# FEE CONVERSATION HANDLER
 # ============================================================
 
 
@@ -278,23 +279,27 @@ def create_fee_handler():
 
 
 # ============================================================
-# SETUP ALL HANDLERS
+# SETUP HANDLERS
 # ============================================================
 
 
 def setup_handlers():
 
     # --------------------------------------------------------
-    # Conversation Handlers
+    # CGPA
     # --------------------------------------------------------
 
     telegram_app.add_handler(create_cgpa_handler())
 
+    # --------------------------------------------------------
+    # Fee
+    # --------------------------------------------------------
+
     telegram_app.add_handler(create_fee_handler())
 
-    # --------------------------------------------------------
-    # Commands
-    # --------------------------------------------------------
+    # ========================================================
+    # COMMANDS
+    # ========================================================
 
     telegram_app.add_handler(
         CommandHandler(
@@ -317,9 +322,9 @@ def setup_handlers():
         )
     )
 
-    # --------------------------------------------------------
-    # Main Menu
-    # --------------------------------------------------------
+    # ========================================================
+    # MAIN MENU
+    # ========================================================
 
     telegram_app.add_handler(
         MessageHandler(
@@ -393,20 +398,11 @@ def setup_handlers():
     )
 
     # ========================================================
-    # CALLBACK QUERIES
+    # CALLBACKS
     # ========================================================
 
     # --------------------------------------------------------
     # Academic Information
-    #
-    # acad_admission
-    # acad_registration
-    # acad_credit
-    # acad_retake
-    # acad_graduation
-    # acad_grading
-    # acad_back
-    # acad_back_info
     # --------------------------------------------------------
 
     telegram_app.add_handler(
@@ -417,10 +413,7 @@ def setup_handlers():
     )
 
     # --------------------------------------------------------
-    # CGPA Grading System
-    #
-    # callback_data:
-    # cgpa_grading
+    # CGPA → Grading System
     # --------------------------------------------------------
 
     telegram_app.add_handler(
@@ -431,10 +424,7 @@ def setup_handlers():
     )
 
     # --------------------------------------------------------
-    # CGPA Cancel Button
-    #
-    # callback_data:
-    # cgpa_cancel_button
+    # CGPA → Cancel
     # --------------------------------------------------------
 
     telegram_app.add_handler(
@@ -446,39 +436,14 @@ def setup_handlers():
 
     # --------------------------------------------------------
     # Settings
-    #
-    # toggle_alerts
-    # settings_back
     # --------------------------------------------------------
 
     telegram_app.add_handler(
         CallbackQueryHandler(
             settings_callback,
-            pattern=r"^(toggle_alerts|settings_back)$",
+            pattern=r"^toggle_alerts$",
         )
     )
-
-
-# ============================================================
-# CGPA INLINE CANCEL CALLBACK
-# ============================================================
-
-
-async def cgpa_cancel_callback(
-    update: Update,
-    context: ContextTypes.DEFAULT_TYPE,
-):
-
-    query = update.callback_query
-
-    await query.answer()
-
-    context.user_data.pop(
-        "cgpa_data",
-        None,
-    )
-
-    await query.message.reply_text("❌ Calculation cancelled.")
 
 
 # ============================================================
@@ -492,7 +457,7 @@ async def error_handler(
 ):
 
     logger.error(
-        "Telegram update error:",
+        "Telegram update error",
         exc_info=context.error,
     )
 
@@ -515,7 +480,7 @@ async def error_handler(
 
 
 # ============================================================
-# APPLICATION LIFESPAN
+# LIFESPAN
 # ============================================================
 
 
@@ -525,7 +490,7 @@ async def lifespan(
 ):
 
     # --------------------------------------------------------
-    # Validate config
+    # Config
     # --------------------------------------------------------
 
     Config.validate()
@@ -545,7 +510,7 @@ async def lifespan(
     telegram_app.add_error_handler(error_handler)
 
     # --------------------------------------------------------
-    # Initialize Telegram
+    # Telegram startup
     # --------------------------------------------------------
 
     await telegram_app.initialize()
@@ -572,22 +537,12 @@ async def lifespan(
 
     webhook_args = {
         "url": webhook_url,
-        # Old queued updates are not processed
-        # after a new deployment.
         "drop_pending_updates": True,
     }
-
-    # --------------------------------------------------------
-    # Optional Secret
-    # --------------------------------------------------------
 
     if WEBHOOK_SECRET:
 
         webhook_args["secret_token"] = WEBHOOK_SECRET
-
-    # --------------------------------------------------------
-    # Set Telegram Webhook
-    # --------------------------------------------------------
 
     await telegram_app.bot.set_webhook(**webhook_args)
 
@@ -600,9 +555,9 @@ async def lifespan(
 
     yield
 
-    # ========================================================
-    # SHUTDOWN
-    # ========================================================
+    # --------------------------------------------------------
+    # Shutdown
+    # --------------------------------------------------------
 
     try:
 
@@ -639,7 +594,7 @@ async def lifespan(
 
 
 # ============================================================
-# FASTAPI APP
+# FASTAPI
 # ============================================================
 
 app = FastAPI(
@@ -687,10 +642,8 @@ async def telegram_webhook(
     request: Request,
 ):
 
-    logger.info("Telegram webhook received.")
-
     # --------------------------------------------------------
-    # Secret verification
+    # Secret
     # --------------------------------------------------------
 
     if WEBHOOK_SECRET:
@@ -699,15 +652,13 @@ async def telegram_webhook(
 
         if received_secret != WEBHOOK_SECRET:
 
-            logger.warning("Invalid Telegram webhook secret.")
-
             raise HTTPException(
                 status_code=403,
                 detail="Invalid webhook secret",
             )
 
     # --------------------------------------------------------
-    # Read update
+    # Process update
     # --------------------------------------------------------
 
     try:
@@ -721,11 +672,8 @@ async def telegram_webhook(
 
         if update is not None:
 
-            # IMPORTANT:
-            # Do not wait for the complete handler.
-            #
-            # Telegram gets 200 immediately.
-            # This keeps webhook response fast.
+            # Do not wait for the handler.
+            # Telegram gets HTTP 200 immediately.
 
             asyncio.create_task(telegram_app.process_update(update))
 
@@ -746,7 +694,7 @@ async def telegram_webhook(
 
 
 # ============================================================
-# LOCAL DEVELOPMENT
+# LOCAL RUN
 # ============================================================
 
 if __name__ == "__main__":
