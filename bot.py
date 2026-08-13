@@ -1,29 +1,53 @@
-import os
 import asyncio
+import logging
 import sys
-from dotenv import load_dotenv
+
 from telegram import Update
 from telegram.ext import (
     Application,
     CommandHandler,
-    MessageHandler,
-    CallbackQueryHandler,
     ConversationHandler,
+    ContextTypes,
+    MessageHandler,
     filters,
 )
-import uvicorn
-from fastapi import FastAPI, Request, Response
+
 from config import Config
+from database import init_db
+from states import (
+    CGPA_MENU_CHOICE,
+    CGPA_PREV_CREDITS,
+    CGPA_PREV_CGPA,
+    CGPA_COURSE_COUNT,
+    CGPA_COURSE_CREDIT,
+    CGPA_COURSE_GRADE,
+    FEE_CREDIT_FEE,
+    FEE_TRIMESTER_FEE,
+    FEE_REG_CREDITS,
+    FEE_RETAKE_COUNT,
+    FEE_RETAKE_CREDITS,
+    FEE_DISCOUNT_TYPE,
+    FEE_DISCOUNT_PERCENT,
+    ADMIN_MENU,
+    ADMIN_SETTING_EDIT,
+    ADMIN_BROADCAST_MESSAGE,
+)
+
 from handlers.general import (
     start,
-    help_command,
-    about,
+    show_links,
+    show_about,
+    show_help,
+    handle_cancel,
+    show_not_implemented,
     academic_info,
-    important_links,
-    notices,
-    academic_calendar,
     academic_info_callback,
+    academic_calendar,
+    notices,
+    settings_menu,
+    settings_callback,
 )
+
 from handlers.cgpa import (
     cgpa_start,
     cgpa_new_calc,
@@ -34,8 +58,11 @@ from handlers.cgpa import (
     get_course_grade,
     cgpa_cancel,
 )
+
 from handlers.fee import (
     fee_start,
+    get_credit_fee,
+    get_trimester_fee,
     get_reg_credits,
     get_retake_count,
     get_retake_credits,
@@ -43,173 +70,279 @@ from handlers.fee import (
     get_discount_percent,
     fee_cancel,
 )
-from handlers.admin import admin_panel, admin_broadcast, broadcast_message
-from states import (
-    CGPA_MENU_CHOICE,
-    CGPA_PREV_CREDITS,
-    CGPA_PREV_CGPA,
-    CGPA_COURSE_COUNT,
-    CGPA_COURSE_CREDIT,
-    CGPA_COURSE_GRADE,
-    FEE_REG_CREDITS,
-    FEE_RETAKE_COUNT,
-    FEE_RETAKE_CREDITS,
-    FEE_DISCOUNT_TYPE,
-    FEE_DISCOUNT_PERCENT,
-    ADMIN_BROADCAST_MESSAGE,
+
+from handlers.admin import (
+    admin_panel,
+    admin_broadcast,
+    broadcast_message,
 )
-from database import init_db
 
-load_dotenv()
+logging.basicConfig(
+    format="%(asctime)s - %(name)s - %(levelname)s - %(message)s",
+    level=logging.INFO,
+)
 
-app = FastAPI()
-ptb = Application.builder().token(Config.BOT_TOKEN).build()
+logger = logging.getLogger(__name__)
 
 
-@app.on_event("startup")
-async def startup_event():
+async def error_handler(
+    update: object,
+    context: ContextTypes.DEFAULT_TYPE,
+) -> None:
+    logger.error(
+        "Exception while handling an update:",
+        exc_info=context.error,
+    )
+
+    if isinstance(update, Update) and update.message:
+        await update.message.reply_text(
+            "⚠ Something went wrong. Please try again or type /start to restart."
+        )
+
+
+def main():
+    if sys.platform == "win32":
+        asyncio.set_event_loop_policy(asyncio.WindowsSelectorEventLoopPolicy())
+
+    try:
+        asyncio.get_event_loop()
+    except RuntimeError:
+        asyncio.set_event_loop(asyncio.new_event_loop())
+
+    Config.validate()
     init_db()
 
-    ptb.add_handler(CommandHandler("start", start))
-    ptb.add_handler(CommandHandler("help", help_command))
-    ptb.add_handler(CommandHandler("about", about))
-    ptb.add_handler(CommandHandler("admin", admin_panel))
-    ptb.add_handler(CommandHandler("broadcast", admin_broadcast))
+    app = Application.builder().token(Config.BOT_TOKEN).build()
 
     cgpa_conv_handler = ConversationHandler(
         entry_points=[
-            MessageHandler(filters.Regex("^🎓 CGPA Calculator$"), cgpa_start)
+            MessageHandler(
+                filters.Regex("^🎓 CGPA Calculator$"),
+                cgpa_start,
+            )
         ],
         states={
             CGPA_MENU_CHOICE: [
-                MessageHandler(filters.Regex("^➕ New Calculation$"), cgpa_new_calc)
+                MessageHandler(
+                    filters.Regex("^➕ New Calculation$"),
+                    cgpa_new_calc,
+                )
             ],
             CGPA_PREV_CREDITS: [
                 MessageHandler(
-                    filters.TEXT & ~filters.Regex("^❌ Cancel$"), get_prev_credits
+                    filters.TEXT & ~filters.COMMAND & ~filters.Regex("^❌ Cancel$"),
+                    get_prev_credits,
                 )
             ],
             CGPA_PREV_CGPA: [
                 MessageHandler(
-                    filters.TEXT & ~filters.Regex("^❌ Cancel$"), get_prev_cgpa
+                    filters.TEXT & ~filters.COMMAND & ~filters.Regex("^❌ Cancel$"),
+                    get_prev_cgpa,
                 )
             ],
             CGPA_COURSE_COUNT: [
                 MessageHandler(
-                    filters.TEXT & ~filters.Regex("^❌ Cancel$"), get_course_count
+                    filters.TEXT & ~filters.COMMAND & ~filters.Regex("^❌ Cancel$"),
+                    get_course_count,
                 )
             ],
             CGPA_COURSE_CREDIT: [
                 MessageHandler(
-                    filters.TEXT & ~filters.Regex("^❌ Cancel$"), get_course_credit
+                    filters.TEXT & ~filters.COMMAND & ~filters.Regex("^❌ Cancel$"),
+                    get_course_credit,
                 )
             ],
             CGPA_COURSE_GRADE: [
                 MessageHandler(
-                    filters.TEXT & ~filters.Regex("^❌ Cancel$"), get_course_grade
+                    filters.TEXT & ~filters.COMMAND & ~filters.Regex("^❌ Cancel$"),
+                    get_course_grade,
                 )
             ],
         },
         fallbacks=[
-            MessageHandler(filters.Regex("^❌ Cancel$"), cgpa_cancel),
-            CommandHandler("cancel", cgpa_cancel),
+            MessageHandler(
+                filters.Regex("^❌ Cancel$"),
+                cgpa_cancel,
+            ),
+            CommandHandler(
+                "cancel",
+                cgpa_cancel,
+            ),
         ],
         per_user=True,
     )
-    ptb.add_handler(cgpa_conv_handler)
 
     fee_conv_handler = ConversationHandler(
-        entry_points=[MessageHandler(filters.Regex("^💰 Fee Calculator$"), fee_start)],
+        entry_points=[
+            MessageHandler(
+                filters.Regex("^💰 Fee Calculator$"),
+                fee_start,
+            )
+        ],
         states={
+            FEE_CREDIT_FEE: [
+                MessageHandler(
+                    filters.TEXT & ~filters.COMMAND & ~filters.Regex("^❌ Cancel$"),
+                    get_credit_fee,
+                )
+            ],
+            FEE_TRIMESTER_FEE: [
+                MessageHandler(
+                    filters.TEXT & ~filters.COMMAND & ~filters.Regex("^❌ Cancel$"),
+                    get_trimester_fee,
+                )
+            ],
             FEE_REG_CREDITS: [
                 MessageHandler(
-                    filters.TEXT & ~filters.Regex("^❌ Cancel$"), get_reg_credits
+                    filters.TEXT & ~filters.COMMAND & ~filters.Regex("^❌ Cancel$"),
+                    get_reg_credits,
                 )
             ],
             FEE_RETAKE_COUNT: [
                 MessageHandler(
-                    filters.TEXT & ~filters.Regex("^❌ Cancel$"), get_retake_count
+                    filters.TEXT & ~filters.COMMAND & ~filters.Regex("^❌ Cancel$"),
+                    get_retake_count,
                 )
             ],
             FEE_RETAKE_CREDITS: [
                 MessageHandler(
-                    filters.TEXT & ~filters.Regex("^❌ Cancel$"), get_retake_credits
+                    filters.TEXT & ~filters.COMMAND & ~filters.Regex("^❌ Cancel$"),
+                    get_retake_credits,
                 )
             ],
             FEE_DISCOUNT_TYPE: [
                 MessageHandler(
-                    filters.TEXT & ~filters.Regex("^❌ Cancel$"), get_discount_type
+                    filters.TEXT & ~filters.COMMAND & ~filters.Regex("^❌ Cancel$"),
+                    get_discount_type,
                 )
             ],
             FEE_DISCOUNT_PERCENT: [
                 MessageHandler(
-                    filters.TEXT & ~filters.Regex("^❌ Cancel$"), get_discount_percent
+                    filters.TEXT & ~filters.COMMAND & ~filters.Regex("^❌ Cancel$"),
+                    get_discount_percent,
                 )
             ],
         },
         fallbacks=[
-            MessageHandler(filters.Regex("^❌ Cancel$"), fee_cancel),
-            CommandHandler("cancel", fee_cancel),
+            MessageHandler(
+                filters.Regex("^❌ Cancel$"),
+                fee_cancel,
+            ),
+            CommandHandler(
+                "cancel",
+                fee_cancel,
+            ),
         ],
         per_user=True,
     )
-    ptb.add_handler(fee_conv_handler)
 
-    admin_broadcast_handler = ConversationHandler(
-        entry_points=[CommandHandler("broadcast", admin_broadcast)],
-        states={
-            ADMIN_BROADCAST_MESSAGE: [
-                MessageHandler(filters.TEXT & ~filters.COMMAND, broadcast_message)
-            ],
-        },
-        fallbacks=[],
-        per_user=True,
-    )
-    ptb.add_handler(admin_broadcast_handler)
-
-    ptb.add_handler(MessageHandler(filters.Regex("^📚 Academic Info$"), academic_info))
-    ptb.add_handler(
-        MessageHandler(filters.Regex("^🔗 Important Links$"), important_links)
-    )
-    ptb.add_handler(MessageHandler(filters.Regex("^📢 Notices$"), notices))
-    ptb.add_handler(
-        MessageHandler(filters.Regex("^📅 Academic Calendar$"), academic_calendar)
-    )
-    ptb.add_handler(MessageHandler(filters.Regex("^❓ Help$"), help_command))
-    ptb.add_handler(MessageHandler(filters.Regex("^👤 About$"), about))
-    ptb.add_handler(CallbackQueryHandler(academic_info_callback, pattern="^acad_"))
-
-    await ptb.initialize()
-    await ptb.start()
-
-    webhook_url = os.environ.get("WEBHOOK_URL")
-    if webhook_url:
-        await ptb.bot.set_webhook(
-            url=f"{webhook_url}/{Config.BOT_TOKEN}", drop_pending_updates=True
+    app.add_handler(
+        CommandHandler(
+            "start",
+            start,
         )
+    )
 
+    app.add_handler(
+        CommandHandler(
+            "help",
+            show_help,
+        )
+    )
 
-@app.on_event("shutdown")
-async def shutdown_event():
-    await ptb.stop()
-    await ptb.shutdown()
+    app.add_handler(
+        CommandHandler(
+            "admin",
+            admin_panel,
+        )
+    )
 
+    app.add_handler(cgpa_conv_handler)
+    app.add_handler(fee_conv_handler)
 
-@app.post("/{token}")
-async def process_update(request: Request, token: str):
-    if token == Config.BOT_TOKEN:
-        update_data = await request.json()
-        update = Update.de_json(update_data, ptb.bot)
-        await ptb.process_update(update)
-        return Response(status_code=200)
-    return Response(status_code=403)
+    app.add_handler(
+        MessageHandler(
+            filters.Regex("^🔗 Important Links$"),
+            show_links,
+        )
+    )
 
+    app.add_handler(
+        MessageHandler(
+            filters.Regex("^👤 About$"),
+            show_about,
+        )
+    )
 
-@app.get("/")
-async def health_check():
-    return {"status": "UIU Smart Assistant is running!"}
+    app.add_handler(
+        MessageHandler(
+            filters.Regex("^❓ Help$"),
+            show_help,
+        )
+    )
+
+    app.add_handler(
+        MessageHandler(
+            filters.Regex("^📖 Academic Information$"),
+            academic_info,
+        )
+    )
+
+    app.add_handler(
+        MessageHandler(
+            filters.Regex("^📅 Academic Calendar$"),
+            academic_calendar,
+        )
+    )
+
+    app.add_handler(
+        MessageHandler(
+            filters.Regex("^📢 Notices$"),
+            notices,
+        )
+    )
+
+    app.add_handler(
+        MessageHandler(
+            filters.Regex("^⚙️ Settings$"),
+            settings_menu,
+        )
+    )
+
+    app.add_handler(
+        MessageHandler(
+            filters.Regex("^❌ Cancel$"),
+            handle_cancel,
+        )
+    )
+
+    app.add_handler(
+        MessageHandler(
+            filters.Regex("^(🎁 Scholarship Calculator|📚 Academic Info)$"),
+            show_not_implemented,
+        )
+    )
+
+    app.add_handler(
+        CallbackQueryHandler(
+            academic_info_callback,
+            pattern="^acad_",
+        )
+    )
+
+    app.add_handler(
+        CallbackQueryHandler(
+            settings_callback,
+            pattern="^toggle_alerts$",
+        )
+    )
+
+    app.add_error_handler(error_handler)
+
+    print("UIU Smart Assistant is running...")
+
+    app.run_polling(allowed_updates=Update.ALL_TYPES)
 
 
 if __name__ == "__main__":
-    port = int(os.environ.get("PORT", 10000))
-    uvicorn.run(app, host="0.0.0.0", port=port)
+    main()

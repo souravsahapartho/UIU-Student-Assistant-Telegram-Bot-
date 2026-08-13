@@ -9,12 +9,14 @@
 
 
 (
+    FEE_CREDIT_FEE,
+    FEE_TRIMESTER_FEE,
     FEE_REG_CREDITS,
     FEE_RETAKE_COUNT,
     FEE_RETAKE_CREDITS,
     FEE_DISCOUNT_TYPE,
     FEE_DISCOUNT_PERCENT,
-) = range(10, 15)
+) = range(10, 17)
 
 
 (
