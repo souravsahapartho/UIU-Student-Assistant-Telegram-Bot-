@@ -62,6 +62,8 @@ from handlers.general import (
     show_not_implemented,
     academic_info,
     academic_info_callback,
+    academic_info_menu_handler,
+    academic_info_main_menu,
     settings_menu,
     settings_callback,
     notices,
@@ -93,6 +95,7 @@ from handlers.fee import (
 )
 
 from handlers.calendar import academic_calendar
+
 from handlers.admin import admin_panel
 
 from handlers.scholarship import (
@@ -569,6 +572,15 @@ def setup_handlers():
 
     telegram_app.add_handler(
         MessageHandler(
+            filters.Regex(
+                r"^(🎓 Admission|📝 Registration|📊 Credit System|🔄 Retake Rules|🎯 Graduation|📚 Grading System|⬅️ Main Menu)$"
+            ),
+            academic_info_menu_handler,
+        )
+    )
+
+    telegram_app.add_handler(
+        MessageHandler(
             filters.Regex(r"^🔗 Important Links$"),
             show_links,
         )
@@ -659,7 +671,9 @@ async def error_handler(
 
         if message:
             try:
-                await message.reply_text("⚠️ Something went wrong. Please try again.")
+                await message.reply_text(
+                    "⚠️ Something went wrong. " "Please try again."
+                )
             except Exception:
                 pass
 
@@ -689,6 +703,7 @@ async def lifespan(
         )
 
         logger.info("Academic calendar checker started.")
+
     else:
         logger.warning("JobQueue is unavailable.")
 
@@ -711,10 +726,11 @@ async def lifespan(
             "Webhook configured: %s",
             webhook_url,
         )
-    else:
-        logger.info("Local mode detected. Webhook configuration skipped.")
 
-    logger.info("UIU Student Assistant is running.")
+    else:
+        logger.info("Local mode detected. " "Webhook configuration skipped.")
+
+    logger.info("UIU Sstudent Assistant is running.")
 
     try:
         yield
@@ -738,7 +754,7 @@ async def lifespan(
 
 
 app = FastAPI(
-    title="UIU Student Assistant",
+    title="UIU Sstudent Assistant",
     lifespan=lifespan,
 )
 
@@ -747,7 +763,7 @@ app = FastAPI(
 async def root():
     return {
         "status": "online",
-        "service": "UIU Student Assistant",
+        "service": "UIU Sstudent Assistant",
     }
 
 
@@ -773,8 +789,6 @@ async def telegram_webhook(
         received_secret = request.headers.get("X-Telegram-Bot-Api-Secret-Token")
 
         if received_secret != WEBHOOK_SECRET:
-            logger.warning("Invalid Telegram webhook secret.")
-
             raise HTTPException(
                 status_code=403,
                 detail="Invalid webhook secret",
